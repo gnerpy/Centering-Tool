@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Centering Bench</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+<style>
+:root{
+  --paper:#EDF0EB; --surface:#fff; --surface2:#F6F8F3;
+  --ink:#181B18; --ink2:#585E56; --ink3:#82887F;
+  --rule:#D3D8CE; --rule2:#E3E7DE;
+  --lr:#A8861D; --lr-fill:rgba(196,160,45,.24);
+  --tb:#2C6A93; --tb-fill:rgba(63,133,180,.22);
+  --ok:#2B6B49; --ok-bg:#DCEBE1;
+  --warn:#96601A; --warn-bg:#F4E7CE;
+  --bad:#963129; --bad-bg:#F3DCD8;
+}
+@media (prefers-color-scheme:dark){:root{
+  --paper:#121513; --surface:#1A1E1B; --surface2:#212622;
+  --ink:#E8ECE5; --ink2:#9AA298; --ink3:#798177;
+  --rule:#2F352F; --rule2:#262C27;
+  --lr:#DCB748; --lr-fill:rgba(220,183,72,.22);
+  --tb:#6FAAD0; --tb-fill:rgba(111,170,208,.20);
+  --ok:#68BC8E; --ok-bg:#1D3327;
+  --warn:#D6A052; --warn-bg:#332817;
+  --bad:#E08276; --bad-bg:#35201D;
+}}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--paper);color:var(--ink);
+  font-family:"Source Serif 4",Georgia,serif;font-size:15px;line-height:1.5}
+.mono{font-family:"IBM Plex Mono",Consolas,monospace;font-variant-numeric:tabular-nums}
+h1,h2,h3,button,select,label,.eyebrow,.chip,.nm{font-family:Archivo,Arial,sans-serif}
+.eyebrow{font-size:10.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3)}
+button,select{font-size:12.5px;font-weight:600;letter-spacing:.03em;padding:6px 11px;
+  background:var(--surface);color:var(--ink);border:1px solid var(--rule);cursor:pointer}
+button:hover:not(:disabled),select:hover{border-color:var(--ink3)}
+button:disabled{opacity:.45;cursor:default}
+button.primary{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+:focus-visible{outline:2px solid var(--tb);outline-offset:2px}
+
+.app{display:grid;grid-template-rows:auto minmax(0,1fr);height:100%}
+header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  padding:12px 18px;background:var(--surface);border-bottom:1px solid var(--rule)}
+header h1{font-size:16px;margin:0;letter-spacing:-.01em}
+header .grow{flex:1}
+header .path{font-size:11.5px;color:var(--ink3)}
+
+main{display:grid;grid-template-columns:184px minmax(0,1fr) 268px;min-height:0}
+@media (max-width:1000px){main{grid-template-columns:1fr}}
+
+.rail{border-right:1px solid var(--rule2);background:var(--surface2);
+  padding:12px;overflow-y:auto;display:flex;flex-direction:column;gap:9px}
+.tile{display:flex;flex-direction:column;gap:6px;padding:7px;border:1px solid var(--rule2);
+  background:var(--surface);text-align:left;color:inherit;width:100%}
+.tile[aria-pressed=true]{border-color:var(--lr);box-shadow:inset 0 0 0 1px var(--lr)}
+.tile img{width:100%;height:auto;display:block;background:var(--surface2)}
+.tile .row{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.nm{font-size:11.5px;font-weight:600}
+.chip{font-size:9.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:2px 6px}
+.c-ok{background:var(--ok-bg);color:var(--ok)}
+.c-warn{background:var(--warn-bg);color:var(--warn)}
+.c-bad{background:var(--bad-bg);color:var(--bad)}
+.c-dim{background:var(--rule2);color:var(--ink3)}
+
+.stage{padding:16px;overflow:auto;display:flex;flex-direction:column;gap:12px;min-width:0}
+.canvas{background:var(--surface2);border:1px solid var(--rule2);max-width:760px;margin:0 auto;width:100%}
+.canvas svg{display:block;width:100%;height:auto;touch-action:none}
+.tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--ink3);
+  max-width:760px;margin:0 auto;width:100%}
+kbd{font-family:"IBM Plex Mono",monospace;font-size:11px;border:1px solid var(--rule);
+  border-bottom-width:2px;padding:0 4px;color:var(--ink2)}
+.loupe{max-width:760px;margin:0 auto;width:100%;display:flex;gap:12px;align-items:center}
+.loupe svg{border:1px solid var(--rule2);background:var(--surface2);width:260px;height:150px}
+.loupe .cap{font-size:11.5px;color:var(--ink3)}
+
+.readout{border-left:1px solid var(--rule2);padding:16px;overflow-y:auto;
+  display:flex;flex-direction:column;gap:15px;background:var(--surface)}
+.axis{display:flex;flex-direction:column;gap:3px}
+.axis .cap{font-size:10.5px;font-weight:600;letter-spacing:.13em;text-transform:uppercase;
+  font-family:Archivo,sans-serif;display:flex;align-items:center;gap:6px;color:var(--ink2)}
+.sw{width:9px;height:9px}
+.axis .val{font-size:29px;font-weight:500;letter-spacing:-.02em;line-height:1.05}
+.axis.dead .val{color:var(--ink3)}
+.axis .mm{font-size:11.5px;color:var(--ink3)}
+.bar{height:7px;display:flex;background:var(--rule2);margin-top:2px}
+.bar span{display:block;height:100%}
+.ceil{border-top:1px solid var(--rule2);padding-top:13px;display:flex;flex-direction:column;gap:5px}
+.ceil .g{font-size:34px;font-weight:700;letter-spacing:-.03em;line-height:1}
+.sub{font-size:11.5px;color:var(--ink3);line-height:1.45}
+.flags{font-size:11.5px;line-height:1.5;color:var(--ink3);
+  border-left:2px solid var(--rule);padding-left:9px;display:flex;flex-direction:column;gap:7px}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:auto;padding-top:12px;border-top:1px solid var(--rule2)}
+.empty{padding:40px 18px;color:var(--ink3);max-width:48ch}
+.spin{font-size:12px;color:var(--ink3)}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Centering Bench</h1>
+    <select id="sheet" aria-label="Scan to measure"></select>
+    <button id="go" class="primary">Measure sheet</button>
+    <button id="again" title="Discard cached result and detect again">Re-detect</button>
+    <span class="spin" id="status"></span>
+    <span class="grow"></span>
+    <span class="path mono" id="folder"></span>
+  </header>
+  <main>
+    <div class="rail" id="rail"><div class="eyebrow">No sheet loaded</div></div>
+    <div class="stage" id="stage">
+      <div class="empty" id="empty">Pick a scan and press <b>Measure sheet</b>. Cards are found,
+        turned upright, straightened and measured; then you check the eight guides and confirm.</div>
+      <div class="canvas" hidden id="canvasWrap"><svg id="cv" aria-label="Card with measurement guides"></svg></div>
+      <div class="tools" hidden id="tools">
+        <button id="rot">Rotate 90&deg;</button>
+        <button id="reset">Reset guides</button>
+        <span id="note"></span>
+        <span><kbd>&larr;</kbd><kbd>&rarr;</kbd> nudge, <kbd>Shift</kbd> &times;10</span>
+      </div>
+      <div class="loupe" hidden id="loupeWrap">
+        <svg id="loupe" viewBox="0 0 260 150" aria-hidden="true"></svg>
+        <span class="cap">Close-up of the guide you last touched, at 6&times;.<br>Line up on the edge, not the shadow beside it.</span>
+      </div>
+    </div>
+    <div class="readout" id="readout" hidden>
+      <div class="axis" id="axLR">
+        <div class="cap"><span class="sw" style="background:var(--lr)"></span>Left / Right</div>
+        <div class="val mono" id="vLR">&mdash;</div>
+        <div class="bar"><span id="bLR1" style="background:var(--lr)"></span><span id="bLR2" style="background:var(--rule)"></span></div>
+        <div class="mm mono" id="mmLR"></div>
+      </div>
+      <div class="axis" id="axTB">
+        <div class="cap"><span class="sw" style="background:var(--tb)"></span>Top / Bottom</div>
+        <div class="val mono" id="vTB">&mdash;</div>
+        <div class="bar"><span id="bTB1" style="background:var(--tb)"></span><span id="bTB2" style="background:var(--rule)"></span></div>
+        <div class="mm mono" id="mmTB"></div>
+      </div>
+      <div class="ceil">
+        <div class="eyebrow">Centering ceiling</div>
+        <div class="g mono" id="vGrade">&mdash;</div>
+        <div class="sub" id="vGradeNote"></div>
+      </div>
+      <div class="sub mono" id="vMeta"></div>
+      <div class="flags" id="vFlags"></div>
+      <div class="actions">
+        <button id="confirm" class="primary">Confirm card</button>
+        <button id="csv">Export CSV</button>
+        <button id="json">Export JSON</button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+const NS='http://www.w3.org/2000/svg';
+const $=id=>document.getElementById(id);
+const IMG_W=1500;                 // working resolution of the served crop
+let sheetPath=null, cards=[], cur=0, imgUrl=null, lastGuide=null;
+
+const el=(t,a)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);return e;};
+const FLAG_TEXT={
+  'full-art-frame':'Full art. The thin printed frame at the edge was traced, but it is far less definite than an ordinary border — check all four guides before trusting the ratio.',
+  'no-print-frame-found':'No printed frame could be traced. On a full art that is expected: the frame is holo-textured and the artwork bleeds across it, so no colour rule finds it. The card is perfectly measurable by eye — the inner guides are parked about where the frame runs, so nudge them onto it with the loupe below.',
+  'frame-only-partly-found':'Only part of the frame was traced. Check every dashed guide.',
+  'outer-trace-may-be-a-sleeve':'The card measures oversize, so the outer guides may be sitting on a penny sleeve. Re-scan unsleeved to be sure.',
+  'card-measures-under-size':'The card measures undersize and no edge is obviously clipped. Check the outer guides.',
+  'card-runs-off-the-sheet':'Part of this card is past the edge of the scan.',
+  'left-edge-reconstructed':'The left cut edge is off the scan. It was rebuilt from the right edge assuming a 63 mm card, so read L/R as approximate.',
+  'right-edge-reconstructed':'The right cut edge is off the scan. It was rebuilt from the left edge assuming a 63 mm card, so read L/R as approximate.',
+  'top-edge-reconstructed':'The top cut edge is off the scan. It was rebuilt from the bottom edge assuming an 88 mm card, so read T/B as approximate.',
+  'bottom-edge-reconstructed':'The bottom cut edge is off the scan. It was rebuilt from the top edge assuming an 88 mm card, so read T/B as approximate.'
+};
+
+function guidesFor(c){
+  const [w,h]=c.cropSize, pm=c.pxPerMm, cut=c.cut, fr=c.frame;
+  const g={ol:cut.left??0, or:cut.right??w, ot:cut.top??0, ob:cut.bottom??h};
+  // Park an unfound guide somewhere plausible so it needs a nudge, not a hunt:
+  // mirror a side that was found, else the thin frame of a full art (1.3 mm)
+  // or the wide border of an ordinary card (2.4 mm).
+  const found=fr?['left','right','top','bottom'].filter(k=>fr[k]!=null):[];
+  let inset=(c.borderSpread>=999?1.3:2.4)*pm;
+  if(found.length){
+    const widths=found.map(k=>Math.abs(fr[k]-cut[k])).filter(v=>isFinite(v));
+    if(widths.length) inset=widths.reduce((a,b)=>a+b,0)/widths.length;
+  }
+  g.il=fr&&fr.left!=null?fr.left:g.ol+inset;
+  g.ir=fr&&fr.right!=null?fr.right:g.or-inset;
+  g.it=fr&&fr.top!=null?fr.top:g.ot+inset;
+  g.ib=fr&&fr.bottom!=null?fr.bottom:g.ob-inset;
+  g.placed={l:!!(fr&&fr.left!=null),r:!!(fr&&fr.right!=null),
+            t:!!(fr&&fr.top!=null),b:!!(fr&&fr.bottom!=null)};
+  return g;
+}
+
+async function loadSheets(){
+  const r=await fetch('/api/sheets'); const d=await r.json();
+  $('folder').textContent=d.folder;
+  $('sheet').innerHTML=d.sheets.map(s=>
+    `<option value="${s.path}">${s.name} — ${s.sizeMb} MB</option>`).join('')
+    || '<option value="">no images in this folder</option>';
+}
+
+async function analyse(refresh){
+  sheetPath=$('sheet').value;
+  if(!sheetPath) return;
+  $('status').textContent='Reading the sheet…';
+  $('go').disabled=$('again').disabled=true;
+  try{
+    const r=await fetch('/api/analyse?path='+encodeURIComponent(sheetPath)+(refresh?'&refresh=1':''));
+    const d=await r.json();
+    if(d.error){ $('status').textContent=d.error; return; }
+    cards=d.cards.map(c=>({...c, g:guidesFor(c), confirmed:false}));
+    $('status').textContent=`${cards.length} card${cards.length===1?'':'s'} · ${d.sheet.dpi} dpi`;
+    $('empty').hidden=true; cur=0; rail(); show(0);
+  } finally { $('go').disabled=$('again').disabled=false; }
+}
+
+function statusOf(c){
+  if(!c.complete) return ['Cut off','c-bad'];
+  if(c.confirmed) return ['Confirmed','c-ok'];
+  if(!c.frame) return ['Needs guides','c-warn'];
+  if(c.flags.some(f=>f.endsWith('-edge-reconstructed'))) return ['Rebuilt edge','c-warn'];
+  return ['Measured','c-dim'];
+}
+
+function rail(){
+  const box=$('rail'); box.innerHTML='';
+  const head=document.createElement('div'); head.className='eyebrow';
+  head.textContent=`Sheet · ${cards.length} found`; box.appendChild(head);
+  cards.forEach((c,i)=>{
+    const [txt,cls]=statusOf(c);
+    const b=document.createElement('button');
+    b.className='tile'; b.setAttribute('aria-pressed',i===cur);
+    b.innerHTML=`<img alt="Card ${i+1}" src="/api/card.jpg?path=${encodeURIComponent(sheetPath)}&index=${i}&w=150">
+      <div class="row"><span class="nm">Card ${i+1}</span><span class="chip ${cls}">${txt}</span></div>`;
+    b.onclick=()=>{cur=i;rail();show(i);};
+    box.appendChild(b);
+  });
+}
+
+function show(i){
+  const c=cards[i];
+  imgUrl=`/api/card.jpg?path=${encodeURIComponent(sheetPath)}&index=${i}&w=${IMG_W}`;
+  $('canvasWrap').hidden=false; $('tools').hidden=false; $('readout').hidden=false;
+  $('loupeWrap').hidden=false;
+  const cv=$('cv'); const [w,h]=c.cropSize;
+  cv.setAttribute('viewBox',`0 0 ${w} ${h}`);
+  cv.textContent='';
+  const im=el('image',{x:0,y:0,width:w,height:h,preserveAspectRatio:'none'});
+  im.setAttribute('href',imgUrl); cv.appendChild(im);
+  cv.appendChild(el('g',{id:'bands'}));
+  const lines=el('g',{id:'lines'}); cv.appendChild(lines);
+  ['ol','il','ir','or'].forEach(k=>addGuide(lines,k,'v',c));
+  ['ot','it','ib','ob'].forEach(k=>addGuide(lines,k,'h',c));
+  lastGuide=null;
+  $('note').textContent=`${c.cropSize[0]}×${c.cropSize[1]} px · straightened ${c.skewDeg > 0 ? '+' : ''}${c.skewDeg}°`;
+  paint();
+}
+
+function addGuide(par,key,axis,c){
+  const outer=key[0]==='o';
+  const col=axis==='v'?'var(--lr)':'var(--tb)';
+  const pm=c.pxPerMm;
+  const g=el('g',{'data-k':key,'data-a':axis,tabindex:'0','aria-label':key,
+    style:'cursor:'+(axis==='v'?'ew-resize':'ns-resize')});
+  g.appendChild(el('line',{class:'hit',stroke:'transparent','stroke-width':Math.max(8,pm*0.5)}));
+  g.appendChild(el('line',{class:'vis',stroke:col,'stroke-width':Math.max(1.5,pm*0.05),
+    'stroke-dasharray':outer?'none':`${pm*0.9} ${pm*0.5}`}));
+  g.appendChild(el('rect',{class:'tab',fill:col,
+    width:axis==='v'?pm*0.35:pm*0.9, height:axis==='v'?pm*0.9:pm*0.35}));
+  par.appendChild(g);
+  const move=e=>{
+    if(g.dataset.drag!=='1') return;
+    const p=toLocal(e); set(key, axis==='v'?p.x:p.y); lastGuide=key; paint();
+  };
+  g.addEventListener('pointerdown',e=>{g.setPointerCapture(e.pointerId);g.dataset.drag='1';
+    lastGuide=key; e.preventDefault(); paint();});
+  g.addEventListener('pointermove',move);
+  g.addEventListener('pointerup',e=>{g.dataset.drag='';g.releasePointerCapture(e.pointerId);});
+  g.addEventListener('focus',()=>{lastGuide=key;paint();});
+  g.addEventListener('keydown',e=>{
+    const step=(e.shiftKey?10:1)*cards[cur].pxPerMm*0.02;
+    let d=0;
+    if(e.key==='ArrowLeft'||e.key==='ArrowUp') d=-step;
+    else if(e.key==='ArrowRight'||e.key==='ArrowDown') d=step;
+    else return;
+    e.preventDefault(); lastGuide=key; set(key,cards[cur].g[key]+d); paint();
+  });
+}
+
+function toLocal(e){
+  const cv=$('cv'), m=cv.getScreenCTM().inverse(), p=cv.createSVGPoint();
+  p.x=e.clientX; p.y=e.clientY; return p.matrixTransform(m);
+}
+
+function set(k,v){
+  const c=cards[cur], g=c.g, [w,h]=c.cropSize, lim=(a,b)=>Math.max(a,Math.min(b,v));
+  const edge=c.pxPerMm*0.6;
+  if(k==='ol') g.ol=lim(-edge,g.il-2);
+  else if(k==='il'){ g.il=lim(g.ol+2,g.ir-8); g.placed.l=true; }
+  else if(k==='ir'){ g.ir=lim(g.il+8,g.or-2); g.placed.r=true; }
+  else if(k==='or') g.or=lim(g.ir+2,w+edge);
+  else if(k==='ot') g.ot=lim(-edge,g.it-2);
+  else if(k==='it'){ g.it=lim(g.ot+2,g.ib-8); g.placed.t=true; }
+  else if(k==='ib'){ g.ib=lim(g.it+8,g.ob-2); g.placed.b=true; }
+  else if(k==='ob') g.ob=lim(g.ib+2,h+edge);
+  c.confirmed=false;
+}
+
+function paint(){
+  const c=cards[cur], g=c.g, [w,h]=c.cropSize;
+  const bands=$('bands'); bands.textContent='';
+  [[g.ol,g.il],[g.ir,g.or]].forEach(([a,z])=>bands.appendChild(el('rect',
+    {x:a,y:g.ot,width:Math.max(0,z-a),height:Math.max(0,g.ob-g.ot),fill:'var(--lr-fill)'})));
+  [[g.ot,g.it],[g.ib,g.ob]].forEach(([a,z])=>bands.appendChild(el('rect',
+    {x:g.il,y:a,width:Math.max(0,g.ir-g.il),height:Math.max(0,z-a),fill:'var(--tb-fill)'})));
+  $('cv').querySelectorAll('#lines > g').forEach(node=>{
+    const k=node.dataset.k, v=g[k], vert=node.dataset.a==='v';
+    const vis=node.querySelector('.vis'), hit=node.querySelector('.hit'), tab=node.querySelector('.tab');
+    const x1=vert?v:0, y1=vert?0:v, x2=vert?v:w, y2=vert?h:v;
+    [vis,hit].forEach(n=>{n.setAttribute('x1',x1);n.setAttribute('y1',y1);n.setAttribute('x2',x2);n.setAttribute('y2',y2);});
+    const unplaced = k[0]==='i' && !g.placed[k[1]];
+    vis.setAttribute('opacity', unplaced?0.4 : (k===lastGuide?1:0.85));
+    vis.setAttribute('stroke-width', (k===lastGuide?1.9:1.5)*Math.max(1,c.pxPerMm*0.045));
+    const tw=+tab.getAttribute('width'), th=+tab.getAttribute('height');
+    if(vert){ tab.setAttribute('x',v-tw/2); tab.setAttribute('y',h/2-th/2); }
+    else { tab.setAttribute('x',w/2-tw/2); tab.setAttribute('y',v-th/2); }
+  });
+  loupe(); readout(); rail();
+}
+
+function loupe(){
+  const sv=$('loupe'); sv.textContent='';
+  const c=cards[cur], g=c.g;
+  if(!lastGuide){
+    const t=el('text',{x:130,y:78,'text-anchor':'middle',fill:'var(--ink3)','font-size':12,
+      'font-family':'IBM Plex Mono, monospace'});
+    t.textContent='drag or tab to a guide'; sv.appendChild(t); return;
+  }
+  const vert=lastGuide==='ol'||lastGuide==='il'||lastGuide==='ir'||lastGuide==='or';
+  const z=6, cx=vert?g[lastGuide]:c.cropSize[0]/2, cy=vert?c.cropSize[1]/2:g[lastGuide];
+  const gg=el('g',{transform:`translate(${130 - cx*z} ${75 - cy*z}) scale(${z})`});
+  const im=el('image',{x:0,y:0,width:c.cropSize[0],height:c.cropSize[1],preserveAspectRatio:'none'});
+  im.setAttribute('href',imgUrl); gg.appendChild(im);
+  sv.appendChild(gg);
+  const col=vert?'var(--lr)':'var(--tb)';
+  sv.appendChild(el('line',vert?{x1:130,y1:0,x2:130,y2:150,stroke:col,'stroke-width':1}
+                              :{x1:0,y1:75,x2:260,y2:75,stroke:col,'stroke-width':1}));
+}
+
+function split(a,b){const t=a+b;return t>0?[100*a/t,100*b/t]:null;}
+
+function readout(){
+  const c=cards[cur], g=c.g, pm=c.pxPerMm;
+  const L=(g.il-g.ol)/pm, R=(g.or-g.ir)/pm, T=(g.it-g.ot)/pm, B=(g.ob-g.ib)/pm;
+  const lrOK=g.placed.l&&g.placed.r, tbOK=g.placed.t&&g.placed.b;
+  const lr=lrOK?split(L,R):null, tb=tbOK?split(T,B):null;
+  $('axLR').classList.toggle('dead',!lr); $('axTB').classList.toggle('dead',!tb);
+  $('vLR').textContent = lr?`${lr[0].toFixed(1)} / ${lr[1].toFixed(1)}`:'—';
+  $('vTB').textContent = tb?`${tb[0].toFixed(1)} / ${tb[1].toFixed(1)}`:'—';
+  $('mmLR').textContent = lr?`${L.toFixed(2)} mm · ${R.toFixed(2)} mm`:'place both side guides';
+  $('mmTB').textContent = tb?`${T.toFixed(2)} mm · ${B.toFixed(2)} mm`:'place both end guides';
+  $('bLR1').style.flex=lr?lr[0]:50; $('bLR2').style.flex=lr?lr[1]:50;
+  $('bTB1').style.flex=tb?tb[0]:50; $('bTB2').style.flex=tb?tb[1]:50;
+
+  const worst=Math.max(...((lr||[]).concat(tb||[])), -1);
+  const gr=$('vGrade'), nt=$('vGradeNote');
+  if(worst<0){ gr.textContent='—'; gr.style.color='var(--ink3)'; nt.textContent='Place the inner guides to score this card.'; }
+  else{
+    let grade,label;
+    if(worst<=55){grade=10;label='Gem Mint eligible on centering';}
+    else if(worst<=57){grade=10;label='Inside the Gem Mint band — borderline';}
+    else if(worst<=60){grade=9;label='Mint ceiling';}
+    else if(worst<=65){grade=8;label='NM-MT ceiling';}
+    else if(worst<=70){grade=7;label='NM ceiling';}
+    else{grade=0;label='Centering caps this below 7';}
+    gr.textContent=grade?`PSA ${grade}`:'≤ PSA 7';
+    gr.style.color=grade>=10?'var(--ok)':grade>=9?'var(--warn)':'var(--bad)';
+    nt.textContent=`${label} · worst side ${worst.toFixed(1)}%${(lr&&tb)?'':' · one axis only'}`;
+  }
+  const cw=((g.or-g.ol)/pm).toFixed(2), chh=((g.ob-g.ot)/pm).toFixed(2);
+  $('vMeta').textContent=`card ${cw} × ${chh} mm (63 × 88 nominal) · skew ${c.skewDeg>0?'+':''}${c.skewDeg}° · frame confidence ${(c.frameConfidence*100).toFixed(0)}%`;
+  const fl=$('vFlags'); fl.textContent='';
+  const msgs=c.flags.map(f=>FLAG_TEXT[f]||f);
+  if(!msgs.length) msgs.push('Auto-trace found all four edges and the full frame.');
+  msgs.forEach(m=>{const d=document.createElement('div');d.textContent=m;fl.appendChild(d);});
+  $('confirm').textContent=c.confirmed?'Confirmed ✓':'Confirm card';
+}
+
+function rows(){
+  return cards.map((c,i)=>{
+    const g=c.g,pm=c.pxPerMm;
+    const L=(g.il-g.ol)/pm,R=(g.or-g.ir)/pm,T=(g.it-g.ot)/pm,B=(g.ob-g.ib)/pm;
+    const lr=(g.placed.l&&g.placed.r)?split(L,R):null, tb=(g.placed.t&&g.placed.b)?split(T,B):null;
+    const worst=Math.max(...((lr||[]).concat(tb||[])),-1);
+    let ceiling='';
+    if(worst>=0) ceiling = worst<=55?10:worst<=57?10:worst<=60?9:worst<=65?8:worst<=70?7:'<7';
+    return {card:i+1, label:`Card ${i+1}`,
+      lr:lr?`${lr[0].toFixed(1)}/${lr[1].toFixed(1)}`:'',
+      tb:tb?`${tb[0].toFixed(1)}/${tb[1].toFixed(1)}`:'',
+      leftMm:+L.toFixed(3), rightMm:+R.toFixed(3), topMm:+T.toFixed(3), bottomMm:+B.toFixed(3),
+      worst:worst>=0?+worst.toFixed(1):'', ceiling, confirmed:c.confirmed, flags:c.flags.join('; ')};
+  });
+}
+
+async function doExport(format){
+  const r=await fetch('/api/export',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({path:sheetPath,format,rows:rows()})});
+  const d=await r.json();
+  $('status').textContent=d.written?`Wrote ${d.rows} rows to ${d.written}`:(d.error||'export failed');
+}
+
+$('go').onclick=()=>analyse(false);
+$('again').onclick=()=>analyse(true);
+$('reset').onclick=()=>{cards[cur].g=guidesFor(cards[cur]);cards[cur].confirmed=false;paint();};
+$('confirm').onclick=()=>{cards[cur].confirmed=!cards[cur].confirmed;paint();};
+$('csv').onclick=()=>doExport('csv');
+$('json').onclick=()=>doExport('json');
+$('rot').onclick=async()=>{
+  $('status').textContent='Turning the card…';
+  const r=await fetch('/api/rotate',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({path:sheetPath,index:cur,turns:1})});
+  const fresh=await r.json();
+  cards[cur]={...fresh, g:guidesFor(fresh), confirmed:false};
+  $('status').textContent='';
+  rail(); show(cur);
+};
+loadSheets();
+</script>
+</body>
+</html>

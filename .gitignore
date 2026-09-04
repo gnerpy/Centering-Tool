@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+
+# scans and their results are data, not source
+*.jpg
+*.jpeg
+*.png
+*.tif
+*.tiff
+*.bmp
+*.webp
+*-centering.csv
+*-centering.json
