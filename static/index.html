@@ -68,15 +68,34 @@ main{display:grid;grid-template-columns:184px minmax(0,1fr) 268px;min-height:0}
 .c-dim{background:var(--rule2);color:var(--ink3)}
 
 .stage{padding:16px;overflow:auto;display:flex;flex-direction:column;gap:12px;min-width:0}
-.canvas{background:var(--surface2);border:1px solid var(--rule2);max-width:760px;margin:0 auto;width:100%}
+.canvas{position:relative;background:var(--surface2);border:1px solid var(--rule2);
+  max-width:620px;margin:0 auto;width:100%}
 .canvas svg{display:block;width:100%;height:auto;touch-action:none}
 .tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--ink3);
-  max-width:760px;margin:0 auto;width:100%}
+  max-width:620px;margin:0 auto;width:100%}
 kbd{font-family:"IBM Plex Mono",monospace;font-size:11px;border:1px solid var(--rule);
   border-bottom-width:2px;padding:0 4px;color:var(--ink2)}
-.loupe{max-width:760px;margin:0 auto;width:100%;display:flex;gap:12px;align-items:center}
-.loupe svg{border:1px solid var(--rule2);background:var(--surface2);width:260px;height:150px}
-.loupe .cap{font-size:11.5px;color:var(--ink3)}
+.loupe{position:absolute;top:8px;right:8px;display:flex;flex-direction:column;gap:6px;
+  background:var(--surface);border:1px solid var(--rule);box-shadow:0 2px 10px rgba(0,0,0,.25);
+  padding:8px;transition:top .15s ease,bottom .15s ease}
+.loupe.pin-bottom{top:auto;bottom:8px}
+.loupe svg{border:1px solid var(--rule2);background:var(--surface2);width:200px;height:120px;display:block}
+.loupe .cap{font-size:10px;color:var(--ink3);max-width:200px;line-height:1.35}
+.nudge{display:flex;align-items:center;justify-content:center;gap:3px}
+.nudge button{padding:3px 7px;font-size:11px;line-height:1}
+.nudge .lbl{font-size:10px;color:var(--ink3);font-family:"IBM Plex Mono",monospace;
+  min-width:34px;text-align:center}
+.flagChips{display:flex;flex-wrap:wrap;gap:5px}
+.flagChip{font-size:10.5px;padding:3px 8px;border:1px solid var(--rule);color:var(--ink2);
+  cursor:default;background:var(--surface2)}
+.flagChip.warn{border-color:var(--warn);color:var(--warn);background:var(--warn-bg)}
+.flagChip.bad{border-color:var(--bad);color:var(--bad);background:var(--bad-bg)}
+.gradersMini{display:flex;flex-wrap:wrap;gap:6px}
+.gradersMini .pill{font-size:11px;padding:3px 8px;font-family:"IBM Plex Mono",monospace;
+  border:1px solid var(--rule);cursor:pointer}
+.gradersMini .pill.g10{border-color:var(--ok);color:var(--ok);background:var(--ok-bg)}
+.gradersMini .pill.g9{border-color:var(--warn);color:var(--warn);background:var(--warn-bg)}
+.gradersMini .pill.gfail{border-color:var(--bad);color:var(--bad);background:var(--bad-bg)}
 
 .readout{border-left:1px solid var(--rule2);padding:16px;overflow-y:auto;
   display:flex;flex-direction:column;gap:15px;background:var(--surface)}
@@ -96,7 +115,43 @@ kbd{font-family:"IBM Plex Mono",monospace;font-size:11px;border:1px solid var(--
   border-left:2px solid var(--rule);padding-left:9px;display:flex;flex-direction:column;gap:7px}
 .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:auto;padding-top:12px;border-top:1px solid var(--rule2)}
 .empty{padding:40px 18px;color:var(--ink3);max-width:48ch}
-.spin{font-size:12px;color:var(--ink3)}
+.callout{max-width:760px;margin:0 auto;width:100%;padding:10px 13px;font-size:12.5px;
+  line-height:1.5;border-left:3px solid var(--warn);background:var(--warn-bg);color:var(--ink)}
+.callout.bad{border-left-color:var(--bad);background:var(--bad-bg)}
+.callout b{font-weight:700}
+.modalWrap{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;
+  align-items:center;justify-content:center;z-index:10;padding:16px}
+.modal{background:var(--surface);border:1px solid var(--rule);padding:20px;
+  width:100%;max-width:440px;display:flex;flex-direction:column;gap:12px}
+.modal h2{font-size:15px;margin:0}
+.drop{border:1px dashed var(--rule);padding:28px 14px;text-align:center;
+  color:var(--ink3);font-size:13px;cursor:pointer}
+.drop.over{border-color:var(--tb);color:var(--ink)}
+.drop .link{color:var(--tb);text-decoration:underline;text-underline-offset:2px}
+.pickedList{list-style:none;margin:0;padding:0;max-height:180px;overflow-y:auto;
+  display:flex;flex-direction:column;gap:4px}
+.pickedList li{display:flex;align-items:center;justify-content:space-between;gap:8px;
+  font-size:12px;padding:5px 7px;background:var(--surface2)}
+.pickedList button{padding:1px 7px;font-size:11px;border:none;background:none;color:var(--ink3)}
+.pickedList button:hover{color:var(--bad)}
+.modal.wide{max-width:640px}
+.gradersScroll{max-height:52vh;overflow-y:auto;display:flex;flex-direction:column;gap:14px}
+.graderGroup .name{font-size:13px;font-weight:700}
+.graderGroup .full{font-size:11px;color:var(--ink3);margin-left:6px}
+.tierRow{display:grid;grid-template-columns:20px 100px 1fr;gap:8px 12px;align-items:start;
+  padding:6px 0;border-top:1px solid var(--rule2);font-size:12px}
+.tierRow:first-of-type{border-top:none}
+.tierRow .mark{font-weight:700;text-align:center}
+.tierRow.pass .mark{color:var(--ok)}
+.tierRow.fail .mark{color:var(--ink3)}
+.tierRow .grade{font-weight:600;font-family:Archivo,sans-serif}
+.tierRow .req{color:var(--ink3);font-family:"IBM Plex Mono",monospace;font-size:11px;line-height:1.5}
+.tierRow .note{grid-column:1/-1;color:var(--ink2);line-height:1.45}
+.spin{font-size:12px;color:var(--ink3);display:inline-flex;align-items:center;gap:7px}
+.spin .dot{width:9px;height:9px;border:2px solid var(--rule);border-top-color:var(--ink3);
+  border-radius:50%;display:none;animation:spin .7s linear infinite}
+.spin.busy .dot{display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
@@ -106,7 +161,8 @@ kbd{font-family:"IBM Plex Mono",monospace;font-size:11px;border:1px solid var(--
     <select id="sheet" aria-label="Scan to measure"></select>
     <button id="go" class="primary">Measure sheet</button>
     <button id="again" title="Discard cached result and detect again">Re-detect</button>
-    <span class="spin" id="status"></span>
+    <button id="uploadOpen">Upload photos&hellip;</button>
+    <span class="spin" id="status"><span class="dot"></span><span id="statusText"></span></span>
     <span class="grow"></span>
     <span class="path mono" id="folder"></span>
   </header>
@@ -115,16 +171,28 @@ kbd{font-family:"IBM Plex Mono",monospace;font-size:11px;border:1px solid var(--
     <div class="stage" id="stage">
       <div class="empty" id="empty">Pick a scan and press <b>Measure sheet</b>. Cards are found,
         turned upright, straightened and measured; then you check the eight guides and confirm.</div>
-      <div class="canvas" hidden id="canvasWrap"><svg id="cv" aria-label="Card with measurement guides"></svg></div>
+      <div class="callout" hidden id="callout"></div>
+      <div class="canvas" hidden id="canvasWrap">
+        <svg id="cv" aria-label="Card with measurement guides"></svg>
+        <div class="loupe" hidden id="loupeWrap">
+          <svg id="loupe" viewBox="0 0 200 120" aria-hidden="true"></svg>
+          <div class="nudge" id="nudgeCtl">
+            <button type="button" data-d="-10" title="Nudge 0.2mm">&laquo;</button>
+            <button type="button" data-d="-1" title="Nudge 0.02mm">&lsaquo;</button>
+            <span class="lbl" id="nudgeLabel">&mdash;</span>
+            <button type="button" data-d="1" title="Nudge 0.02mm">&rsaquo;</button>
+            <button type="button" data-d="10" title="Nudge 0.2mm">&raquo;</button>
+          </div>
+          <span class="cap">8&times; &mdash; line up on the edge, not the shadow beside it.</span>
+        </div>
+      </div>
       <div class="tools" hidden id="tools">
         <button id="rot">Rotate 90&deg;</button>
         <button id="reset">Reset guides</button>
+        <label style="display:flex;align-items:center;gap:5px;cursor:pointer">
+          <input type="checkbox" id="showFlaws" checked>flaw overlay</label>
         <span id="note"></span>
         <span><kbd>&larr;</kbd><kbd>&rarr;</kbd> nudge, <kbd>Shift</kbd> &times;10</span>
-      </div>
-      <div class="loupe" hidden id="loupeWrap">
-        <svg id="loupe" viewBox="0 0 260 150" aria-hidden="true"></svg>
-        <span class="cap">Close-up of the guide you last touched, at 6&times;.<br>Line up on the edge, not the shadow beside it.</span>
       </div>
     </div>
     <div class="readout" id="readout" hidden>
@@ -145,22 +213,84 @@ kbd{font-family:"IBM Plex Mono",monospace;font-size:11px;border:1px solid var(--
         <div class="g mono" id="vGrade">&mdash;</div>
         <div class="sub" id="vGradeNote"></div>
       </div>
+      <div class="ceil">
+        <div class="eyebrow">Across graders</div>
+        <div class="gradersMini" id="gradersMini"></div>
+      </div>
       <div class="sub mono" id="vMeta"></div>
-      <div class="flags" id="vFlags"></div>
+      <div class="flagChips" id="vFlags"></div>
       <div class="actions">
         <button id="confirm" class="primary">Confirm card</button>
+        <button id="report" class="primary">Export report image</button>
         <button id="csv">Export CSV</button>
         <button id="json">Export JSON</button>
+        <button id="gradersOpen">Compare graders</button>
       </div>
     </div>
   </main>
+</div>
+
+<div class="modalWrap" id="uploadModal" hidden>
+  <div class="modal">
+    <h2>Upload photos</h2>
+    <p class="sub">From this machine only &mdash; files are copied into <code class="mono">uploads/</code>
+      next to the scans folder. Nothing leaves your computer.</p>
+    <div class="drop" id="dropZone" tabindex="0">
+      Drag photos here, or <span class="link">choose files</span>
+      <input type="file" id="fileInput" multiple accept="image/*" hidden>
+    </div>
+    <ul class="pickedList" id="pickedList"></ul>
+    <div class="sub" id="uploadStatus"></div>
+    <div class="actions">
+      <button id="uploadGo" class="primary" disabled>Upload</button>
+      <button id="uploadCancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="modalWrap" id="gradersModal" hidden>
+  <div class="modal wide">
+    <h2>Front centering across graders</h2>
+    <p class="sub" id="gradersSub"></p>
+    <div class="gradersScroll" id="gradersBody"></div>
+    <p class="sub">Checked live against published <b>front centering</b> tolerances only &mdash; back figures are
+      shown for reference (a separate scan, generally looser) but not evaluated here, and corners, surface, and
+      edges aren't assessed at all. A tier that centering allows is a ceiling, not a prediction: condition
+      elsewhere can still cap the real grade lower. PSA and TAG publish exact numeric scales; CGC publishes most
+      tiers; Beckett (BGS) has never published one exact table, so its figures are the best-corroborated
+      community consensus, not a company document — expect more real-world variance there than the other three.</p>
+    <div class="actions">
+      <button id="gradersClose" class="primary">Close</button>
+    </div>
+  </div>
 </div>
 
 <script>
 const NS='http://www.w3.org/2000/svg';
 const $=id=>document.getElementById(id);
 const IMG_W=1500;                 // working resolution of the served crop
-let sheetPath=null, cards=[], cur=0, imgUrl=null, lastGuide=null;
+let sheetPath=null, cards=[], cur=0, imgUrl=null, lastGuide=null, statusTimer=null;
+
+function setStatus(text,busy){
+  clearInterval(statusTimer); statusTimer=null;
+  $('status').classList.toggle('busy',!!busy);
+  $('statusText').textContent=text;
+}
+function setBusy(label,pollPath){
+  const t0=performance.now();
+  let stage='';
+  setStatus(label,true);
+  statusTimer=setInterval(async()=>{
+    const elapsed=((performance.now()-t0)/1000).toFixed(0);
+    $('statusText').textContent=`${stage||label} · ${elapsed}s`;
+    if(!pollPath) return;
+    try{
+      const r=await fetch('/api/progress?path='+encodeURIComponent(pollPath));
+      const d=await r.json();
+      if(d.stage) stage=d.stage;
+    }catch(e){/* a missed poll just keeps the last known stage */}
+  },500);
+}
 
 const el=(t,a)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);return e;};
 const FLAG_TEXT={
@@ -173,25 +303,85 @@ const FLAG_TEXT={
   'left-edge-reconstructed':'The left cut edge is off the scan. It was rebuilt from the right edge assuming a 63 mm card, so read L/R as approximate.',
   'right-edge-reconstructed':'The right cut edge is off the scan. It was rebuilt from the left edge assuming a 63 mm card, so read L/R as approximate.',
   'top-edge-reconstructed':'The top cut edge is off the scan. It was rebuilt from the bottom edge assuming an 88 mm card, so read T/B as approximate.',
-  'bottom-edge-reconstructed':'The bottom cut edge is off the scan. It was rebuilt from the top edge assuming an 88 mm card, so read T/B as approximate.'
+  'bottom-edge-reconstructed':'The bottom cut edge is off the scan. It was rebuilt from the top edge assuming an 88 mm card, so read T/B as approximate.',
+  'corner-wear':'At least one corner shows more rounding, chipping, or whitening than the others — check the dashed boxes drawn on the corners. This compares corners against each other and against the card’s own border colour, not against a graded reference, so treat it as a prompt to look, not a verdict.',
+  'edge-whitening':'A stretch along an edge reads lighter than the rest of the border, which can mean the surface layer has worn through to the stock beneath — check the highlighted strip(s) along the edges.',
+  'photo-had-no-background-margin':'This photo had no visible background around the card at all — it looks like it arrived already cropped. The card’s own edges were trusted directly instead of being traced against a background, which works well for a clean, tight crop but has no way to catch a crop that’s very slightly off — check the outer guides against the image by eye.'
 };
 
+// Front-centering tolerances only, checked against each grader's published
+// standard -- back centering (a separate scan, and generally looser; shown
+// below only as reference, never evaluated live here) and every non-centering
+// factor -- corners, surface, edges -- are outside what this tool measures.
+// bestMax/worstMax let a tier require one axis to be tighter than the other
+// (BGS 9.5's "50/50 one way, 55/45 the other"); most tiers just set both
+// the same, which collapses to a single "worst side" threshold.
+//
+// Sourced September 2026 from each grader's own published scale where one
+// exists (psacard.com, cgccards.com, taggrading.com/pages/rubric), cross-
+// checked against grading-hobby aggregator sites where a company publishes
+// no exact table of its own. PSA and TAG publish clear numeric standards;
+// CGC's scale page gives most tiers but not all; BGS has never published a
+// single authoritative numeric table, so its figures here are the
+// best-corroborated community consensus, not a company document -- expect
+// more real variation there than the other three.
+const PROVIDERS=[
+  {name:'PSA', full:'Professional Sports Authenticator', tiers:[
+    {grade:'PSA 10',label:'Gem Mint',bestMax:55,worstMax:55,back:'75/25',
+      note:'~55/45 or better centering, alongside sharp corners and full original gloss — this view checks centering only.'},
+    {grade:'PSA 9',label:'Mint',bestMax:60,worstMax:60,back:'90/10',
+      note:'Front centering loosens to 60/40; the card must appear superb overall but is allowed one minor flaw, such as a slight print imperfection.'},
+    {grade:'PSA 8',label:'NM-MT',bestMax:65,worstMax:65,back:'90/10',
+      note:'Centering allowance 65/35, permitting minor wear visible on close inspection, like slight corner fraying.'},
+    {grade:'PSA 7',label:'NM',bestMax:70,worstMax:70,back:'90/10',
+      note:'Centering allowance 70/30.'},
+  ]},
+  {name:'BGS', full:'Beckett Grading Services', tiers:[
+    {grade:'BGS 10',label:'Black Label',bestMax:50,worstMax:50,back:'~50/50',
+      note:'A perfect 10 in all four subgrades (centering, corners, edges, surface) — Beckett describes the centering itself as "50/50, or virtually indistinguishable from perfect," on both sides.'},
+    {grade:'BGS 9.5',label:'Gem Mint',bestMax:50,worstMax:55,back:'~60/40',
+      note:'Commonly reported as 50/50 in one direction and 55/45 in the other (some Beckett-side wording simplifies this to plain "55/45 or better") — corners and edges must look virtually perfect to the naked eye.'},
+    {grade:'BGS 9',label:'Mint',bestMax:55,worstMax:55,back:'~65–70/30–35',
+      note:'Most commonly reported as 55/45 both ways on the front, permitting only unobtrusive specks of wear. Beckett has not published one single exact figure here, so treat this tier as the least certain of the four graders shown.'},
+  ]},
+  {name:'CGC', full:'CGC Cards', tiers:[
+    {grade:'CGC 10',label:'Pristine',bestMax:50,worstMax:50,back:'not separately published',
+      note:'CGC’s own scale states front centering of 50/50 for this tier, "virtually flawless to the naked eye" — CGC does not publish a separate back figure for it.'},
+    {grade:'CGC 10',label:'Gem Mint',bestMax:55,worstMax:55,back:'75/25',
+      note:'Matches PSA’s 55/45 front allowance, but demands a surface devoid of print spots and corners Mint+ under 10x magnification.'},
+    {grade:'CGC 9',label:'Mint',bestMax:60,worstMax:60,back:'90/10',
+      note:'Centering must be 60/40 or better on the front. (CGC’s 9.5 "Mint+" tier sits between this and Gem Mint but is defined qualitatively — "exceptional centering or surface" — rather than with its own published number.)'},
+  ]},
+  {name:'TAG', full:'Technical Authentication & Grading', tiers:[
+    {grade:'TAG 10P',label:'Pristine',bestMax:51,worstMax:51,back:'54.5/45.5 sports · 52/48 TCG',
+      note:'Evaluated entirely by AI and digital imaging: front centering cannot exceed 51/49. The tightest published standard of any grader shown here.'},
+    {grade:'TAG 10',label:'Gem Mint',bestMax:55,worstMax:55,back:'70/30 sports · 65/35 TCG',
+      note:'The AI verifies 55/45 front centering; surface, gloss and edges must be digitally flawless to the naked eye.'},
+    {grade:'TAG 9',label:'Mint',bestMax:60,worstMax:60,back:'90/10 sports · 75/25 TCG',
+      note:'Up to 60/40 front centering, permitting the AI to register minor border chipping, faint scratches, or minuscule print spots that might escape a human grader.'},
+    {grade:'TAG 8',label:'NM-Mint',bestMax:65,worstMax:65,back:'~95/5 sports · ~85/15 TCG',
+      note:'Up to 65/35 front centering. TAG’s full rubric actually runs in half-point steps all the way to 1.5 — these are just the tiers collectors usually compare against the other three graders.'},
+  ]},
+];
+
 function guidesFor(c){
-  const [w,h]=c.cropSize, pm=c.pxPerMm, cut=c.cut, fr=c.frame;
+  const [w,h]=c.cropSize, pm=c.pxPerMm, cut=c.cut, fr=c.frame, gu=c.frameGuess;
   const g={ol:cut.left??0, or:cut.right??w, ot:cut.top??0, ob:cut.bottom??h};
   // Park an unfound guide somewhere plausible so it needs a nudge, not a hunt:
-  // mirror a side that was found, else the thin frame of a full art (1.3 mm)
-  // or the wide border of an ordinary card (2.4 mm).
+  // the server's own rough read of that side (frameGuess -- a looser, blurred
+  // re-read for exactly the cards the strict tracer gave up on), else mirror
+  // a side that was found, else the thin frame of a full art (1.3 mm) or the
+  // wide border of an ordinary card (2.4 mm).
   const found=fr?['left','right','top','bottom'].filter(k=>fr[k]!=null):[];
   let inset=(c.borderSpread>=999?1.3:2.4)*pm;
   if(found.length){
     const widths=found.map(k=>Math.abs(fr[k]-cut[k])).filter(v=>isFinite(v));
     if(widths.length) inset=widths.reduce((a,b)=>a+b,0)/widths.length;
   }
-  g.il=fr&&fr.left!=null?fr.left:g.ol+inset;
-  g.ir=fr&&fr.right!=null?fr.right:g.or-inset;
-  g.it=fr&&fr.top!=null?fr.top:g.ot+inset;
-  g.ib=fr&&fr.bottom!=null?fr.bottom:g.ob-inset;
+  g.il=fr&&fr.left!=null?fr.left:gu&&gu.left!=null?gu.left:g.ol+inset;
+  g.ir=fr&&fr.right!=null?fr.right:gu&&gu.right!=null?gu.right:g.or-inset;
+  g.it=fr&&fr.top!=null?fr.top:gu&&gu.top!=null?gu.top:g.ot+inset;
+  g.ib=fr&&fr.bottom!=null?fr.bottom:gu&&gu.bottom!=null?gu.bottom:g.ob-inset;
   g.placed={l:!!(fr&&fr.left!=null),r:!!(fr&&fr.right!=null),
             t:!!(fr&&fr.top!=null),b:!!(fr&&fr.bottom!=null)};
   return g;
@@ -201,8 +391,8 @@ async function loadSheets(){
   const r=await fetch('/api/sheets'); const d=await r.json();
   $('folder').textContent=d.folder;
   const sel=$('sheet'); sel.innerHTML='';
-  const groups={scans:'Your scans', samples:'Samples in the repo'};
-  for(const key of ['scans','samples']){
+  const groups={scans:'Your scans', uploads:'Uploaded photos', samples:'Samples in the repo'};
+  for(const key of ['scans','uploads','samples']){
     const rows=d.sheets.filter(s=>s.source===key);
     if(!rows.length) continue;
     const og=document.createElement('optgroup'); og.label=groups[key];
@@ -219,15 +409,17 @@ async function loadSheets(){
 async function analyse(refresh){
   sheetPath=$('sheet').value;
   if(!sheetPath) return;
-  $('status').textContent='Reading the sheet…';
+  setBusy(refresh?'Re-detecting…':'Reading the sheet…', sheetPath);
   $('go').disabled=$('again').disabled=true;
   try{
     const r=await fetch('/api/analyse?path='+encodeURIComponent(sheetPath)+(refresh?'&refresh=1':''));
     const d=await r.json();
-    if(d.error){ $('status').textContent=d.error; return; }
+    if(d.error){ setStatus(d.error,false); return; }
     cards=d.cards.map(c=>({...c, g:guidesFor(c), confirmed:false}));
-    $('status').textContent=`${cards.length} card${cards.length===1?'':'s'} · ${d.sheet.dpi} dpi`;
+    const dpiLabel=d.sheet.dpi?`${d.sheet.dpi} dpi`:'photo, perspective-corrected';
+    setStatus(`${cards.length} card${cards.length===1?'':'s'} · ${dpiLabel}`,false);
     $('empty').hidden=true; cur=0; rail(); show(0);
+  } catch(e){ setStatus('Could not reach the server — is it still running?',false);
   } finally { $('go').disabled=$('again').disabled=false; }
 }
 
@@ -247,30 +439,78 @@ function rail(){
     const [txt,cls]=statusOf(c);
     const b=document.createElement('button');
     b.className='tile'; b.setAttribute('aria-pressed',i===cur);
-    b.innerHTML=`<img alt="Card ${i+1}" src="/api/card.jpg?path=${encodeURIComponent(sheetPath)}&index=${i}&w=150">
+    // versioned by orientation/skew: the URL is otherwise unchanged across a
+    // rotate, so the browser would serve the pre-rotation thumbnail instead
+    // of fetching one that matches the card's new orientation.
+    const ver=`${c.quarterTurns}_${c.skewDeg}`;
+    b.innerHTML=`<img alt="Card ${i+1}" src="/api/card.jpg?path=${encodeURIComponent(sheetPath)}&index=${i}&w=150&v=${ver}">
       <div class="row"><span class="nm">Card ${i+1}</span><span class="chip ${cls}">${txt}</span></div>`;
     b.onclick=()=>{cur=i;rail();show(i);};
     box.appendChild(b);
   });
 }
 
+function updateCallout(c){
+  const box=$('callout');
+  if(!c.photo){ box.hidden=true; return; }
+  const noMargin=c.flags&&c.flags.includes('photo-had-no-background-margin');
+  const shaky=!c.frame || c.refinedFromOversizedTrace || noMargin
+    || (c.localization && c.localization.keystone>0.05);
+  if(!shaky){ box.hidden=true; return; }
+  box.hidden=false;
+  box.classList.toggle('bad', !c.frame);
+  const bits=[];
+  if(!c.frame) bits.push('the printed frame could not be traced');
+  if(c.refinedFromOversizedTrace) bits.push('the outer edge first traced to a sleeve or toploader, not the card itself, and had to be re-found');
+  if(noMargin) bits.push('the photo had no background margin at all, so the card\'s own edges were trusted directly rather than traced against a background');
+  if(c.localization && c.localization.keystone>0.05) bits.push(`the camera angle was fairly oblique (keystone ${(c.localization.keystone*100).toFixed(0)}%)`);
+  box.innerHTML=`<b>Image quality may be affecting this reading.</b> ${bits.join('; ')}. `+
+    `Likely causes: glare off a sleeve or toploader, uneven lighting, a steep shooting angle, or a pre-cropped source image. `+
+    `Drag all eight guides into place by eye before trusting the ratio &mdash; a flatbed scan avoids this entirely.`;
+}
+
 function show(i){
   const c=cards[i];
-  imgUrl=`/api/card.jpg?path=${encodeURIComponent(sheetPath)}&index=${i}&w=${IMG_W}`;
+  // versioned by orientation/skew: see the matching note in rail().
+  imgUrl=`/api/card.jpg?path=${encodeURIComponent(sheetPath)}&index=${i}&w=${IMG_W}&v=${c.quarterTurns}_${c.skewDeg}`;
   $('canvasWrap').hidden=false; $('tools').hidden=false; $('readout').hidden=false;
   $('loupeWrap').hidden=false;
+  updateCallout(c);
   const cv=$('cv'); const [w,h]=c.cropSize;
   cv.setAttribute('viewBox',`0 0 ${w} ${h}`);
   cv.textContent='';
   const im=el('image',{x:0,y:0,width:w,height:h,preserveAspectRatio:'none'});
   im.setAttribute('href',imgUrl); cv.appendChild(im);
   cv.appendChild(el('g',{id:'bands'}));
+  if($('showFlaws').checked) cv.appendChild(flawsGroup(c));
   const lines=el('g',{id:'lines'}); cv.appendChild(lines);
   ['ol','il','ir','or'].forEach(k=>addGuide(lines,k,'v',c));
   ['ot','it','ib','ob'].forEach(k=>addGuide(lines,k,'h',c));
   lastGuide=null;
   $('note').textContent=`${c.cropSize[0]}×${c.cropSize[1]} px · straightened ${c.skewDeg > 0 ? '+' : ''}${c.skewDeg}°`;
   paint();
+}
+
+function titled(node,text){
+  const t=document.createElementNS(NS,'title'); t.textContent=text; node.appendChild(t); return node;
+}
+
+function flawsGroup(c){
+  const g=el('g',{id:'flaws'});
+  (c.corners||[]).forEach(cnr=>{
+    const bad=cnr.severity>=0.35, col=bad?'var(--bad)':'var(--warn)';
+    const [x0,y0,x1,y1]=cnr.box;
+    g.appendChild(titled(el('rect',{x:x0,y:y0,width:x1-x0,height:y1-y0,fill:'none',
+      stroke:col,'stroke-width':3,'stroke-dasharray':'5 4'}),
+      `${cnr.corner} corner — fill deficit ${(cnr.fillDeficit*100).toFixed(0)}%, whiteness ${(cnr.whiteness*100).toFixed(0)}%`));
+  });
+  (c.edgeWhitening||[]).forEach(ew=>{
+    const [x0,y0,x1,y1]=ew.box;
+    g.appendChild(titled(el('rect',{x:x0,y:y0,width:Math.max(1,x1-x0),height:Math.max(1,y1-y0),
+      fill:'var(--warn)',opacity:0.4,stroke:'var(--warn)','stroke-width':1}),
+      `Edge whitening, ${ew.side} — ${(ew.whiteness*100).toFixed(0)}%`));
+  });
+  return g;
 }
 
 function addGuide(par,key,axis,c){
@@ -280,6 +520,15 @@ function addGuide(par,key,axis,c){
   const g=el('g',{'data-k':key,'data-a':axis,tabindex:'0','aria-label':key,
     style:'cursor:'+(axis==='v'?'ew-resize':'ns-resize')});
   g.appendChild(el('line',{class:'hit',stroke:'transparent','stroke-width':Math.max(8,pm*0.5)}));
+  // a dark-then-light halo behind the coloured line keeps it visible against
+  // any card art -- a plain colour line disappears against a similar-toned
+  // background, which was hard to see against busy or low-contrast art.
+  g.appendChild(el('line',{class:'halo1',stroke:'#000','stroke-opacity':0.55,
+    'stroke-width':Math.max(1.5,pm*0.05)+3.5,
+    'stroke-dasharray':outer?'none':`${pm*0.9} ${pm*0.5}`}));
+  g.appendChild(el('line',{class:'halo2',stroke:'#fff','stroke-opacity':0.75,
+    'stroke-width':Math.max(1.5,pm*0.05)+1.6,
+    'stroke-dasharray':outer?'none':`${pm*0.9} ${pm*0.5}`}));
   g.appendChild(el('line',{class:'vis',stroke:col,'stroke-width':Math.max(1.5,pm*0.05),
     'stroke-dasharray':outer?'none':`${pm*0.9} ${pm*0.5}`}));
   g.appendChild(el('rect',{class:'tab',fill:col,
@@ -333,11 +582,16 @@ function paint(){
   $('cv').querySelectorAll('#lines > g').forEach(node=>{
     const k=node.dataset.k, v=g[k], vert=node.dataset.a==='v';
     const vis=node.querySelector('.vis'), hit=node.querySelector('.hit'), tab=node.querySelector('.tab');
+    const halo1=node.querySelector('.halo1'), halo2=node.querySelector('.halo2');
     const x1=vert?v:0, y1=vert?0:v, x2=vert?v:w, y2=vert?h:v;
-    [vis,hit].forEach(n=>{n.setAttribute('x1',x1);n.setAttribute('y1',y1);n.setAttribute('x2',x2);n.setAttribute('y2',y2);});
+    [vis,hit,halo1,halo2].forEach(n=>{n.setAttribute('x1',x1);n.setAttribute('y1',y1);n.setAttribute('x2',x2);n.setAttribute('y2',y2);});
     const unplaced = k[0]==='i' && !g.placed[k[1]];
-    vis.setAttribute('opacity', unplaced?0.4 : (k===lastGuide?1:0.85));
-    vis.setAttribute('stroke-width', (k===lastGuide?1.9:1.5)*Math.max(1,c.pxPerMm*0.045));
+    const active=k===lastGuide;
+    const baseW=(active?1.9:1.5)*Math.max(1,c.pxPerMm*0.045);
+    [vis,halo1,halo2].forEach(n=>n.setAttribute('opacity', unplaced?0.4:(active?1:0.85)));
+    vis.setAttribute('stroke-width', baseW);
+    halo1.setAttribute('stroke-width', baseW+3.5);
+    halo2.setAttribute('stroke-width', baseW+1.6);
     const tw=+tab.getAttribute('width'), th=+tab.getAttribute('height');
     if(vert){ tab.setAttribute('x',v-tw/2); tab.setAttribute('y',h/2-th/2); }
     else { tab.setAttribute('x',w/2-tw/2); tab.setAttribute('y',v-th/2); }
@@ -347,21 +601,30 @@ function paint(){
 
 function loupe(){
   const sv=$('loupe'); sv.textContent='';
-  const c=cards[cur], g=c.g;
+  const wrap=$('loupeWrap');
+  // float the loupe to whichever corner the active guide ISN'T near, so it
+  // never covers the very thing you're trying to look at.
+  wrap.classList.toggle('pin-bottom', lastGuide==='ot'||lastGuide==='it');
   if(!lastGuide){
-    const t=el('text',{x:130,y:78,'text-anchor':'middle',fill:'var(--ink3)','font-size':12,
+    const t=el('text',{x:100,y:62,'text-anchor':'middle',fill:'var(--ink3)','font-size':11,
       'font-family':'IBM Plex Mono, monospace'});
-    t.textContent='drag or tab to a guide'; sv.appendChild(t); return;
+    t.textContent='drag or tab to a guide'; sv.appendChild(t);
+    $('nudgeLabel').textContent='—';
+    $('nudgeCtl').querySelectorAll('button').forEach(b=>b.disabled=true);
+    return;
   }
+  $('nudgeCtl').querySelectorAll('button').forEach(b=>b.disabled=false);
+  $('nudgeLabel').textContent=lastGuide;
+  const c=cards[cur], g=c.g;
   const vert=lastGuide==='ol'||lastGuide==='il'||lastGuide==='ir'||lastGuide==='or';
-  const z=6, cx=vert?g[lastGuide]:c.cropSize[0]/2, cy=vert?c.cropSize[1]/2:g[lastGuide];
-  const gg=el('g',{transform:`translate(${130 - cx*z} ${75 - cy*z}) scale(${z})`});
+  const z=8, cx=vert?g[lastGuide]:c.cropSize[0]/2, cy=vert?c.cropSize[1]/2:g[lastGuide];
+  const gg=el('g',{transform:`translate(${100 - cx*z} ${60 - cy*z}) scale(${z})`});
   const im=el('image',{x:0,y:0,width:c.cropSize[0],height:c.cropSize[1],preserveAspectRatio:'none'});
   im.setAttribute('href',imgUrl); gg.appendChild(im);
   sv.appendChild(gg);
   const col=vert?'var(--lr)':'var(--tb)';
-  sv.appendChild(el('line',vert?{x1:130,y1:0,x2:130,y2:150,stroke:col,'stroke-width':1}
-                              :{x1:0,y1:75,x2:260,y2:75,stroke:col,'stroke-width':1}));
+  sv.appendChild(el('line',vert?{x1:100,y1:0,x2:100,y2:120,stroke:col,'stroke-width':1}
+                              :{x1:0,y1:60,x2:200,y2:60,stroke:col,'stroke-width':1}));
 }
 
 function split(a,b){const t=a+b;return t>0?[100*a/t,100*b/t]:null;}
@@ -385,7 +648,6 @@ function readout(){
   else{
     let grade,label;
     if(worst<=55){grade=10;label='Gem Mint eligible on centering';}
-    else if(worst<=57){grade=10;label='Inside the Gem Mint band — borderline';}
     else if(worst<=60){grade=9;label='Mint ceiling';}
     else if(worst<=65){grade=8;label='NM-MT ceiling';}
     else if(worst<=70){grade=7;label='NM ceiling';}
@@ -397,10 +659,44 @@ function readout(){
   const cw=((g.or-g.ol)/pm).toFixed(2), chh=((g.ob-g.ot)/pm).toFixed(2);
   $('vMeta').textContent=`card ${cw} × ${chh} mm (63 × 88 nominal) · skew ${c.skewDeg>0?'+':''}${c.skewDeg}° · frame confidence ${(c.frameConfidence*100).toFixed(0)}%`;
   const fl=$('vFlags'); fl.textContent='';
-  const msgs=c.flags.map(f=>FLAG_TEXT[f]||f);
-  if(!msgs.length) msgs.push('Auto-trace found all four edges and the full frame.');
-  msgs.forEach(m=>{const d=document.createElement('div');d.textContent=m;fl.appendChild(d);});
+  const HARD_FLAGS=new Set(['card-runs-off-the-sheet','no-print-frame-found']);
+  if(!c.flags.length){
+    const chip=document.createElement('span'); chip.className='flagChip';
+    chip.textContent='clean trace'; chip.title='Auto-trace found all four edges and the full frame.';
+    fl.appendChild(chip);
+  } else c.flags.forEach(f=>{
+    const chip=document.createElement('span');
+    chip.className='flagChip '+(HARD_FLAGS.has(f)?'bad':'warn');
+    chip.textContent=f.replace(/-/g,' '); chip.title=FLAG_TEXT[f]||f;
+    fl.appendChild(chip);
+  });
   $('confirm').textContent=c.confirmed?'Confirmed ✓':'Confirm card';
+  renderGradersMini(lr,tb);
+}
+
+function bestTierFor(bestAxis,worstAxis,tiers){
+  for(const t of tiers) if(bestAxis<=t.bestMax && worstAxis<=t.worstMax) return t;
+  return null;
+}
+
+function renderGradersMini(lr,tb){
+  const box=$('gradersMini'); box.innerHTML='';
+  if(!lr||!tb){
+    box.innerHTML='<span class="sub">Place all four inner guides to see this.</span>';
+    return;
+  }
+  const worstLR=Math.max(...lr), worstTB=Math.max(...tb);
+  const bestAxis=Math.min(worstLR,worstTB), worstAxis=Math.max(worstLR,worstTB);
+  PROVIDERS.forEach(p=>{
+    const t=bestTierFor(bestAxis,worstAxis,p.tiers);
+    const pill=document.createElement('button');
+    pill.type='button';
+    pill.className='pill '+(t?(t.grade.match(/10/)?'g10':'g9'):'gfail');
+    pill.textContent=t?`${p.name} ${t.grade.replace(p.name+' ','')}`:`${p.name} <7`;
+    pill.title=t?`${t.grade} ${t.label} — ${t.note}`:`Centering alone caps this below every ${p.name} tier tracked here.`;
+    pill.onclick=openGraders;
+    box.appendChild(pill);
+  });
 }
 
 function rows(){
@@ -410,7 +706,7 @@ function rows(){
     const lr=(g.placed.l&&g.placed.r)?split(L,R):null, tb=(g.placed.t&&g.placed.b)?split(T,B):null;
     const worst=Math.max(...((lr||[]).concat(tb||[])),-1);
     let ceiling='';
-    if(worst>=0) ceiling = worst<=55?10:worst<=57?10:worst<=60?9:worst<=65?8:worst<=70?7:'<7';
+    if(worst>=0) ceiling = worst<=55?10:worst<=60?9:worst<=65?8:worst<=70?7:'<7';
     return {card:i+1, label:`Card ${i+1}`,
       lr:lr?`${lr[0].toFixed(1)}/${lr[1].toFixed(1)}`:'',
       tb:tb?`${tb[0].toFixed(1)}/${tb[1].toFixed(1)}`:'',
@@ -420,25 +716,335 @@ function rows(){
 }
 
 async function doExport(format){
+  setBusy('Exporting…');
   const r=await fetch('/api/export',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({path:sheetPath,format,rows:rows()})});
   const d=await r.json();
-  $('status').textContent=d.written?`Wrote ${d.rows} rows to ${d.written}`:(d.error||'export failed');
+  setStatus(d.written?`Wrote ${d.rows} rows to ${d.written}`:(d.error||'export failed'),false);
 }
+
+// -- shareable report image ------------------------------------------------
+
+function wrapLines(text,maxChars){
+  const words=text.split(' '), lines=[]; let line='';
+  words.forEach(w=>{
+    if((line+' '+w).trim().length>maxChars){ lines.push(line.trim()); line=w; }
+    else line=(line+' '+w).trim();
+  });
+  if(line) lines.push(line);
+  return lines;
+}
+
+function svgText(parent,x,y,lines,attrs){
+  const t=el('text',{x,y,...attrs});
+  const lh=(attrs['font-size']||12)*1.4;
+  (Array.isArray(lines)?lines:[lines]).forEach((line,i)=>{
+    const ts=document.createElementNS(NS,'tspan');
+    ts.setAttribute('x',x); ts.setAttribute('dy',i===0?0:lh);
+    ts.textContent=line; t.appendChild(ts);
+  });
+  parent.appendChild(t);
+  return t;
+}
+
+function reportGuide(parent,x1,y1,x2,y2,col,outer,w){
+  const dash=outer?'none':`${w*3} ${w*1.6}`;
+  [['#000',w+3,0.5],['#fff',w+1.4,0.7],[col,w,1]].forEach(([stroke,sw,op])=>{
+    parent.appendChild(el('line',{x1,y1,x2,y2,stroke,'stroke-width':sw,'stroke-opacity':op,'stroke-dasharray':dash}));
+  });
+}
+
+async function imgToDataUrl(url){
+  const r=await fetch(url); const blob=await r.blob();
+  return new Promise((resolve,reject)=>{
+    const fr=new FileReader();
+    fr.onload=()=>resolve(fr.result); fr.onerror=reject;
+    fr.readAsDataURL(blob);
+  });
+}
+
+function buildReportSvg(c,cardDataUrl){
+  const RPT_W=1000, PAD=40, CARD_W=460;
+  const [cw,ch]=c.cropSize, scale=CARD_W/cw, CARD_H=ch*scale;
+  const imgX=PAD, imgY=110;
+  const colX=imgX+CARD_W+44, colW=RPT_W-colX-PAD;
+  const g=c.g, pm=c.pxPerMm;
+  const L=(g.il-g.ol)/pm, R=(g.or-g.ir)/pm, T=(g.it-g.ot)/pm, B=(g.ob-g.ib)/pm;
+  const lr=(g.placed.l&&g.placed.r)?split(L,R):null, tb=(g.placed.t&&g.placed.b)?split(T,B):null;
+  const worst=Math.max(...((lr||[]).concat(tb||[])),-1);
+
+  const svg=document.createElementNS(NS,'svg');
+  svg.setAttribute('xmlns',NS);
+  const bg='#EDF0EB', ink='#181B18', ink2='#585E56', ink3='#82887F', rule='#D3D8CE';
+  const lr_c='#A8861D', tb_c='#2C6A93', ok='#2B6B49', warn='#96601A', bad='#963129';
+
+  svg.appendChild(el('rect',{x:0,y:0,width:RPT_W,height:9999,id:'bgrect',fill:bg}));
+
+  svgText(svg,PAD,42,'Centering Bench — report card',{'font-size':20,'font-weight':700,fill:ink,'font-family':'Arial,sans-serif'});
+  const when=new Date().toLocaleString();
+  svgText(svg,PAD,64,`${(sheetPath.split('/').pop()||sheetPath)} · card ${cur+1} of ${cards.length} · generated ${when}`,
+    {'font-size':12,fill:ink3,'font-family':'monospace'});
+
+  // -- card image + guide overlay --
+  svg.appendChild(el('image',{x:imgX,y:imgY,width:CARD_W,height:CARD_H,href:cardDataUrl,'preserveAspectRatio':'none'}));
+  const bandsG=el('g',{});
+  const tx=x=>imgX+x*scale, ty=y=>imgY+y*scale;
+  [[g.ol,g.il],[g.ir,g.or]].forEach(([a,z])=>bandsG.appendChild(el('rect',
+    {x:tx(a),y:ty(g.ot),width:Math.max(0,(z-a)*scale),height:Math.max(0,(g.ob-g.ot)*scale),fill:'rgba(196,160,45,.24)'})));
+  [[g.ot,g.it],[g.ib,g.ob]].forEach(([a,z])=>bandsG.appendChild(el('rect',
+    {x:tx(g.il),y:ty(a),width:Math.max(0,(g.ir-g.il)*scale),height:Math.max(0,(z-a)*scale),fill:'rgba(63,133,180,.22)'})));
+  svg.appendChild(bandsG);
+  const lw=Math.max(1.2,pm*scale*0.05);
+  [['ol',false],['il',true],['ir',true],['or',false]].forEach(([k,inner])=>
+    reportGuide(svg,tx(g[k]),ty(0),tx(g[k]),ty(ch),lr_c,!inner,lw));
+  [['ot',false],['it',true],['ib',true],['ob',false]].forEach(([k,inner])=>
+    reportGuide(svg,tx(0),ty(g[k]),tx(cw),ty(g[k]),tb_c,!inner,lw));
+  svg.appendChild(el('rect',{x:imgX,y:imgY,width:CARD_W,height:CARD_H,fill:'none',stroke:rule,'stroke-width':1}));
+
+  // -- right column --
+  let y=imgY+14;
+  const axis=(label,val,mmLine,col)=>{
+    svgText(svg,colX,y,label,{'font-size':11,'font-weight':700,fill:ink2,'font-family':'Arial,sans-serif','letter-spacing':'.06em'});
+    y+=26;
+    svgText(svg,colX,y,val,{'font-size':26,'font-weight':600,fill:ink,'font-family':'monospace'});
+    y+=20;
+    svgText(svg,colX,y,mmLine,{'font-size':11,fill:ink3,'font-family':'monospace'});
+    y+=30;
+  };
+  axis('LEFT / RIGHT', lr?`${lr[0].toFixed(1)} / ${lr[1].toFixed(1)}`:'—',
+    lr?`${L.toFixed(2)} mm · ${R.toFixed(2)} mm`:'not placed', lr_c);
+  axis('TOP / BOTTOM', tb?`${tb[0].toFixed(1)} / ${tb[1].toFixed(1)}`:'—',
+    tb?`${T.toFixed(2)} mm · ${B.toFixed(2)} mm`:'not placed', tb_c);
+
+  y+=6;
+  svgText(svg,colX,y,'CENTERING CEILING',{'font-size':11,'font-weight':700,fill:ink2,'font-family':'Arial,sans-serif','letter-spacing':'.06em'});
+  y+=32;
+  let grade=null,glabel='';
+  if(worst>=0){
+    if(worst<=55){grade=10;glabel='Gem Mint eligible on centering';}
+    else if(worst<=60){grade=9;glabel='Mint ceiling';}
+    else if(worst<=65){grade=8;glabel='NM-MT ceiling';}
+    else if(worst<=70){grade=7;glabel='NM ceiling';}
+    else{grade=0;glabel='Centering caps this below 7';}
+  }
+  const gradeColor=worst<0?ink3:(grade>=10?ok:grade>=9?warn:bad);
+  svgText(svg,colX,y,worst<0?'—':`PSA ${grade||'≤7'}`,
+    {'font-size':38,'font-weight':700,fill:gradeColor,'font-family':'Arial,sans-serif'});
+  y+=22;
+  svgText(svg,colX,y,worst>=0?`${glabel} · worst side ${worst.toFixed(1)}%`:'Guides not placed',
+    {'font-size':11.5,fill:ink3,'font-family':'Arial,sans-serif'});
+  y+=34;
+
+  svgText(svg,colX,y,'ACROSS GRADERS',{'font-size':11,'font-weight':700,fill:ink2,'font-family':'Arial,sans-serif','letter-spacing':'.06em'});
+  y+=8;
+  if(lr&&tb){
+    const worstLR=Math.max(...lr), worstTB=Math.max(...tb);
+    const bestAxis=Math.min(worstLR,worstTB), worstAxis=Math.max(worstLR,worstTB);
+    PROVIDERS.forEach(p=>{
+      const t=bestTierFor(bestAxis,worstAxis,p.tiers);
+      y+=24;
+      const col2=t?(t.grade.match(/10/)?ok:warn):bad;
+      svgText(svg,colX,y,`${p.name}`,{'font-size':13,'font-weight':700,fill:ink,'font-family':'Arial,sans-serif'});
+      svgText(svg,colX+70,y,t?`${t.grade} ${t.label}`:'below tracked tiers',
+        {'font-size':13,fill:col2,'font-family':'Arial,sans-serif'});
+    });
+    y+=20;
+  } else {
+    y+=20;
+    svgText(svg,colX,y,'Place all four inner guides to compare.',{'font-size':11.5,fill:ink3,'font-family':'Arial,sans-serif'});
+    y+=10;
+  }
+
+  if(c.flags.length){
+    y+=24;
+    svgText(svg,colX,y,'FLAGS',{'font-size':11,'font-weight':700,fill:ink2,'font-family':'Arial,sans-serif','letter-spacing':'.06em'});
+    y+=20;
+    c.flags.forEach(f=>{
+      svgText(svg,colX,y,'· '+f.replace(/-/g,' '),{'font-size':11.5,fill:ink3,'font-family':'Arial,sans-serif'});
+      y+=17;
+    });
+  }
+
+  const bodyBottom=Math.max(imgY+CARD_H, y)+30;
+  const footLines=wrapLines('These figures reflect centering only -- corners, surface, edges and back '+
+    'centering are not assessed here. A grader\'s ceiling is what centering still allows, not a prediction; '+
+    'condition elsewhere can cap the real grade lower. Generated locally by Centering Bench; scans are '+
+    'never uploaded.',110);
+  svgText(svg,PAD,bodyBottom,footLines,{'font-size':10.5,fill:ink3,'font-family':'Arial,sans-serif'});
+  const totalH=bodyBottom+footLines.length*15+20;
+
+  svg.setAttribute('viewBox',`0 0 ${RPT_W} ${totalH}`);
+  svg.setAttribute('width',RPT_W); svg.setAttribute('height',totalH);
+  svg.querySelector('#bgrect').setAttribute('height',totalH);
+  return svg;
+}
+
+async function exportReport(){
+  const c=cards[cur];
+  setBusy('Building report…');
+  try{
+    const cardDataUrl=await imgToDataUrl(imgUrl);
+    const svg=buildReportSvg(c,cardDataUrl);
+    const svgString=new XMLSerializer().serializeToString(svg);
+    const svgUrl='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svgString);
+    const img=new Image();
+    await new Promise((resolve,reject)=>{ img.onload=resolve; img.onerror=reject; img.src=svgUrl; });
+    const canvas=document.createElement('canvas');
+    const scale=2; // sharper than 1:1 for sharing/printing
+    canvas.width=+svg.getAttribute('width')*scale;
+    canvas.height=+svg.getAttribute('height')*scale;
+    const ctx=canvas.getContext('2d');
+    ctx.scale(scale,scale);
+    ctx.drawImage(img,0,0);
+    const blob=await new Promise(res=>canvas.toBlob(res,'image/png'));
+    const a=document.createElement('a');
+    const stem=(sheetPath.split('/').pop()||'card').replace(/\.[a-z0-9]+$/i,'');
+    a.href=URL.createObjectURL(blob);
+    a.download=`${stem}-card${cur+1}-report.png`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    setStatus('Report image downloaded',false);
+  } catch(e){
+    setStatus('Could not build the report image — '+(e.message||e),false);
+  }
+}
+
+function renderGraders(c){
+  const g=c.g, pm=c.pxPerMm;
+  const L=(g.il-g.ol)/pm, R=(g.or-g.ir)/pm, T=(g.it-g.ot)/pm, B=(g.ob-g.ib)/pm;
+  const lr=(g.placed.l&&g.placed.r)?split(L,R):null, tb=(g.placed.t&&g.placed.b)?split(T,B):null;
+  const body=$('gradersBody'); body.innerHTML='';
+  if(!lr||!tb){
+    $('gradersSub').textContent='Place all four inner guides — both axes — to compare this card against graders.';
+    return;
+  }
+  const worstLR=Math.max(...lr), worstTB=Math.max(...tb);
+  const bestAxis=Math.min(worstLR,worstTB), worstAxis=Math.max(worstLR,worstTB);
+  $('gradersSub').textContent=`This card's front centering: L/R ${lr[0].toFixed(1)}/${lr[1].toFixed(1)} · `+
+    `T/B ${tb[0].toFixed(1)}/${tb[1].toFixed(1)}`;
+  PROVIDERS.forEach(p=>{
+    const grp=document.createElement('div'); grp.className='graderGroup';
+    grp.innerHTML=`<span class="name">${p.name}</span><span class="full">${p.full}</span>`;
+    const best=bestTierFor(bestAxis,worstAxis,p.tiers);
+    p.tiers.forEach(t=>{
+      const pass=bestAxis<=t.bestMax && worstAxis<=t.worstMax;
+      const req=t.bestMax===t.worstMax
+        ? `${t.worstMax}/${100-t.worstMax} or better`
+        : `${t.bestMax}/${100-t.bestMax} one way, ${t.worstMax}/${100-t.worstMax} other`;
+      const row=document.createElement('div');
+      row.className='tierRow '+(pass?'pass':'fail');
+      if(t===best) row.style.background='var(--ok-bg)';
+      row.innerHTML=`<span class="mark">${pass?'✓':'—'}</span>`+
+        `<span class="grade">${t.grade}<br><span class="full">${t.label}</span></span>`+
+        `<span class="req">${req}<br><span class="full">back: ${t.back}</span></span>`+
+        `<div class="note">${t.note}</div>`;
+      grp.appendChild(row);
+    });
+    if(!best){
+      const row=document.createElement('div'); row.className='tierRow fail';
+      row.innerHTML=`<span class="mark">—</span><span class="grade">Below listed tiers</span><span class="req"></span>`+
+        `<div class="note">Centering alone caps this below every ${p.name} tier listed here.</div>`;
+      grp.appendChild(row);
+    }
+    body.appendChild(grp);
+  });
+}
+function openGraders(){ renderGraders(cards[cur]); $('gradersModal').hidden=false; }
+function closeGraders(){ $('gradersModal').hidden=true; }
+$('gradersOpen').onclick=openGraders;
+$('gradersClose').onclick=closeGraders;
+$('gradersModal').addEventListener('click',e=>{ if(e.target.id==='gradersModal') closeGraders(); });
+
+let picked=[];
+
+function fmtBytes(n){return n>1e6?`${(n/1e6).toFixed(1)} MB`:`${Math.round(n/1e3)} KB`;}
+
+function renderPicked(){
+  const ul=$('pickedList'); ul.innerHTML='';
+  picked.forEach((f,i)=>{
+    const li=document.createElement('li');
+    li.innerHTML=`<span>${f.name} <span class="mono">· ${fmtBytes(f.size)}</span></span>`;
+    const rm=document.createElement('button'); rm.textContent='remove';
+    rm.onclick=()=>{picked.splice(i,1);renderPicked();};
+    li.appendChild(rm); ul.appendChild(li);
+  });
+  $('uploadGo').disabled=picked.length===0;
+}
+
+function addFiles(list){
+  for(const f of list) if(f.type.startsWith('image/')) picked.push(f);
+  renderPicked();
+}
+
+function openUpload(){
+  picked=[]; renderPicked(); $('uploadStatus').textContent='';
+  $('uploadModal').hidden=false;
+}
+function closeUpload(){ $('uploadModal').hidden=true; }
+
+$('uploadOpen').onclick=openUpload;
+$('uploadCancel').onclick=closeUpload;
+$('uploadModal').addEventListener('click',e=>{ if(e.target.id==='uploadModal') closeUpload(); });
+$('dropZone').onclick=()=>$('fileInput').click();
+$('dropZone').addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' ') $('fileInput').click(); });
+$('fileInput').onchange=e=>{ addFiles(e.target.files); e.target.value=''; };
+$('dropZone').addEventListener('dragover',e=>{ e.preventDefault(); $('dropZone').classList.add('over'); });
+$('dropZone').addEventListener('dragleave',()=>$('dropZone').classList.remove('over'));
+$('dropZone').addEventListener('drop',e=>{
+  e.preventDefault(); $('dropZone').classList.remove('over');
+  addFiles(e.dataTransfer.files);
+});
+
+$('uploadGo').onclick=async()=>{
+  if(!picked.length) return;
+  $('uploadGo').disabled=true;
+  $('uploadStatus').textContent=`Uploading ${picked.length} file${picked.length===1?'':'s'}…`;
+  const form=new FormData();
+  picked.forEach(f=>form.append('files',f));
+  try{
+    const r=await fetch('/api/upload',{method:'POST',body:form});
+    const d=await r.json();
+    if(d.error){ $('uploadStatus').textContent=d.error; $('uploadGo').disabled=false; return; }
+    closeUpload();
+    const first=d.saved[0];
+    await loadSheets();
+    const opt=[...$('sheet').options].find(o=>o.textContent.startsWith(first+' '));
+    if(opt){
+      $('sheet').value=opt.value;
+      // don't just select it -- measure it right away, so uploading visibly
+      // does something instead of silently changing a dropdown value. analyse()
+      // sets its own final status (card count, dpi, or an error), so it wins.
+      await analyse(false);
+    } else {
+      setStatus(`Uploaded ${d.saved.length} file${d.saved.length===1?'':'s'}`+
+        (d.skipped.length?` · skipped ${d.skipped.length} non-image file(s)`:''),false);
+    }
+  } catch(e){
+    $('uploadStatus').textContent='Upload failed — is the server still running?';
+    $('uploadGo').disabled=false;
+  }
+};
 
 $('go').onclick=()=>analyse(false);
 $('again').onclick=()=>analyse(true);
 $('reset').onclick=()=>{cards[cur].g=guidesFor(cards[cur]);cards[cur].confirmed=false;paint();};
+$('showFlaws').onchange=()=>show(cur);
+$('nudgeCtl').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b||b.disabled||!lastGuide) return;
+  const d=+b.dataset.d, step=(Math.abs(d)===10?10:1)*cards[cur].pxPerMm*0.02*Math.sign(d);
+  set(lastGuide, cards[cur].g[lastGuide]+step); paint();
+});
 $('confirm').onclick=()=>{cards[cur].confirmed=!cards[cur].confirmed;paint();};
 $('csv').onclick=()=>doExport('csv');
 $('json').onclick=()=>doExport('json');
+$('report').onclick=()=>exportReport();
 $('rot').onclick=async()=>{
-  $('status').textContent='Turning the card…';
+  setBusy('Turning the card…', sheetPath);
   const r=await fetch('/api/rotate',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({path:sheetPath,index:cur,turns:1})});
   const fresh=await r.json();
   cards[cur]={...fresh, g:guidesFor(fresh), confirmed:false};
-  $('status').textContent='';
+  setStatus('',false);
   rail(); show(cur);
 };
 loadSheets();
