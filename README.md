@@ -16,7 +16,9 @@ Runs entirely on your machine. Scans are read from disk and never uploaded.
 First run builds `.venv` and installs Flask, Pillow and NumPy; after that it just starts
 the server and opens <http://127.0.0.1:8787/>.
 
-Scans are read from the folder **above** this one. To read them from somewhere else:
+Two folders are offered in the dropdown: `samples/` (ships with the repo, so a fresh
+clone has something to open straight away) and the folder **above** this one, where your
+own scans live. To read yours from somewhere else:
 
 ```powershell
 $env:BENCH_SCANS = "D:\scans"; .\run.ps1
@@ -33,8 +35,9 @@ $env:BENCH_SCANS = "D:\scans"; .\run.ps1
    with Shift. The loupe under the card shows the guide at 6×.
 4. **Rotate 90°** if a card came out sideways or upside down; it re-measures in the new
    orientation.
-5. **Confirm card**, then **Export CSV** or **Export JSON**. The file lands next to the
-   scan as `<scan name>-centering.csv`.
+5. **Confirm card**, then **Export CSV** or **Export JSON**. The file lands in
+   `results/` as `<scan name>-centering.csv`, which is tracked by git — commit it and
+   your measurements are on both machines. Scans themselves stay out of the repo.
 
 ## How the measurement works
 
@@ -88,3 +91,21 @@ surface or corners. Below PSA 7, centering is almost never what caps the grade.
     server.py            local Flask service and JSON API
     static/index.html    the whole UI
     run.ps1              first-run setup and start
+    samples/             one scan to work against anywhere
+    results/             exported measurements, tracked
+
+## The sample sheet
+
+`samples/sheet-4-cards.jpg` is a 1200 dpi scan of four cards, kept at full resolution
+because dropping it to 600 dpi visibly degrades one edge trace. It is deliberately an
+awkward sheet, and covers most of what the tool has to cope with:
+
+| Card | What it exercises |
+|---|---|
+| 1 Moltres ex | full art with no traceable frame; sits at +1.0 deg of skew |
+| 2 Kyogre | clean measurement, 54.7 / 45.3 and 45.7 / 54.3 |
+| 3 Kyogre | clean measurement, right on the PSA 9 line |
+| 4 Groudon | runs off the bottom of the scan, so it cannot be scored |
+
+Every card on it also runs slightly off the left edge of the platen, so all four exercise
+the reconstruct-from-63x88 path.

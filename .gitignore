@@ -2,7 +2,7 @@
 __pycache__/
 *.pyc
 
-# scans and their results are data, not source
+# Scans are data, not source, and they are large -- keep them out.
 *.jpg
 *.jpeg
 *.png
@@ -10,5 +10,10 @@ __pycache__/
 *.tiff
 *.bmp
 *.webp
-*-centering.csv
-*-centering.json
+
+# ...except the sample sheet, so a fresh clone has something to open.
+!samples/*.jpg
+
+# Measurements are small, diff well, and are worth having on both machines.
+!results/*.csv
+!results/*.json

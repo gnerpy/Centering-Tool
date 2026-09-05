@@ -23,18 +23,32 @@ import detect
 PORT = int(os.environ.get("BENCH_PORT", "8787"))
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCANS = os.path.abspath(os.environ.get("BENCH_SCANS", os.path.dirname(HERE)))
+SAMPLES = os.path.join(HERE, "samples")     # ships with the repo, so a fresh
+RESULTS = os.path.join(HERE, "results")     # clone has something to open
 SUFFIXES = (".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".webp")
 
 app = Flask(__name__, static_folder=None)
 _analysis: dict[str, dict] = {}
 
 
+def _roots() -> list[tuple[str, str]]:
+    """Folders scans may be read from, as (label, path)."""
+    found = [("scans", SCANS)]
+    if os.path.isdir(SAMPLES) and os.path.abspath(SAMPLES) != SCANS:
+        found.append(("samples", SAMPLES))
+    return found
+
+
 def _safe(path: str) -> str:
-    """Keep file access inside the scans folder."""
+    """Keep file access inside a folder we are meant to be reading."""
     full = os.path.abspath(path)
-    if os.path.commonpath([full, SCANS]) != SCANS:
-        raise ValueError("that file is outside the scans folder")
-    return full
+    for _, root in _roots():
+        try:
+            if os.path.commonpath([full, root]) == os.path.abspath(root):
+                return full
+        except ValueError:
+            continue  # different drive
+    raise ValueError("that file is outside the scans and samples folders")
 
 
 def _analyse(path: str, refresh: bool = False) -> dict:
@@ -70,19 +84,23 @@ def static_file(name):
 @app.get("/api/sheets")
 def sheets():
     rows = []
-    for name in sorted(os.listdir(SCANS)):
-        full = os.path.join(SCANS, name)
-        if not os.path.isfile(full) or not name.lower().endswith(SUFFIXES):
+    for label, root in _roots():
+        if not os.path.isdir(root):
             continue
-        stat = os.stat(full)
-        rows.append({
-            "name": name,
-            "path": full,
-            "sizeMb": round(stat.st_size / 1e6, 1),
-            "modified": datetime.fromtimestamp(stat.st_mtime).strftime("%d %b %Y %H:%M"),
-            "analysed": full in _analysis,
-        })
-    return jsonify({"folder": SCANS, "sheets": rows})
+        for name in sorted(os.listdir(root)):
+            full = os.path.join(root, name)
+            if not os.path.isfile(full) or not name.lower().endswith(SUFFIXES):
+                continue
+            stat = os.stat(full)
+            rows.append({
+                "name": name,
+                "path": full,
+                "source": label,
+                "sizeMb": round(stat.st_size / 1e6, 1),
+                "modified": datetime.fromtimestamp(stat.st_mtime).strftime("%d %b %Y %H:%M"),
+                "analysed": full in _analysis,
+            })
+    return jsonify({"folder": SCANS, "results": RESULTS, "sheets": rows})
 
 
 @app.get("/api/analyse")
@@ -135,8 +153,10 @@ def export():
     path = _safe(body["path"])
     rows = body.get("rows", [])
     fmt = body.get("format", "csv")
+    # Results live inside the repo so a measured sheet travels with the code.
+    os.makedirs(RESULTS, exist_ok=True)
     stem = os.path.splitext(os.path.basename(path))[0]
-    out = os.path.join(SCANS, f"{stem}-centering.{ 'json' if fmt == 'json' else 'csv' }")
+    out = os.path.join(RESULTS, f"{stem}-centering.{'json' if fmt == 'json' else 'csv'}")
     if fmt == "json":
         with open(out, "w", encoding="utf-8") as fh:
             json.dump({"sheet": os.path.basename(path), "cards": rows}, fh, indent=1)

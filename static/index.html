@@ -200,9 +200,20 @@ function guidesFor(c){
 async function loadSheets(){
   const r=await fetch('/api/sheets'); const d=await r.json();
   $('folder').textContent=d.folder;
-  $('sheet').innerHTML=d.sheets.map(s=>
-    `<option value="${s.path}">${s.name} — ${s.sizeMb} MB</option>`).join('')
-    || '<option value="">no images in this folder</option>';
+  const sel=$('sheet'); sel.innerHTML='';
+  const groups={scans:'Your scans', samples:'Samples in the repo'};
+  for(const key of ['scans','samples']){
+    const rows=d.sheets.filter(s=>s.source===key);
+    if(!rows.length) continue;
+    const og=document.createElement('optgroup'); og.label=groups[key];
+    rows.forEach(s=>{
+      const o=document.createElement('option');
+      o.value=s.path; o.textContent=`${s.name} — ${s.sizeMb} MB`;
+      og.appendChild(o);
+    });
+    sel.appendChild(og);
+  }
+  if(!sel.options.length) sel.innerHTML='<option value="">no images found</option>';
 }
 
 async function analyse(refresh){
