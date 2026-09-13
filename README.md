@@ -39,6 +39,34 @@ $env:BENCH_SCANS = "D:\scans"; .\run.ps1
    `results/` as `<scan name>-centering.csv`, which is tracked by git — commit it and
    your measurements are on both machines. Scans themselves stay out of the repo.
 
+## Fine-tuning as the database grows
+
+Every card you confirm and export is also evidence, not just a result. Alongside the
+CSV/JSON, exporting appends one record per confirmed card to `results/calibration.jsonl`
+— also tracked by git, so what you learn on one machine is available on the other the
+next time you pull.
+
+Only one thing gets learned from it today: where to park a guide the auto-trace couldn't
+find at all. Every card gets a `kind` — `bordered`, `full-art`, `no-frame`, or
+`unreadable` — and a side with no trace and no rough guess starts from a flat,
+kind-level number (1.3 mm for full art, 2.4 mm for everything else) that was originally
+just a guess of mine. Once three or more confirmed cards of a kind have a side that
+started that same blind way, `/api/tuning` replaces the guess with the **median**
+correction actually made, and every card measured afterward starts from that instead —
+across sessions and machines, since the log is what's shared, not a model file. The
+small `tuned from N confirmed cards` note in the header (hover it) shows the current
+numbers and how many corrections built each one.
+
+This is deliberately narrow: it only touches the single fallback number used when
+nothing else was found, and only from sides that were genuinely blind (a side the
+tracer or its guess did find is excluded, so fixing one doesn't quietly bias the other).
+A card style you photograph often — say, a specific full-foil promo run — will pull that
+number toward its own true border width after a handful of confirmations, the way the
+Jolteon fix in this repo's history did by hand for one card. Corrections to a trace that
+already had a real reading aren't used for anything yet; that's a natural next step
+(catching a systematic bias in the trace itself, not just the blind fallback) once
+`calibration.jsonl` has enough of them to be worth mining.
+
 ## How the measurement works
 
 Centering is the ratio of opposing border widths: the gap between the card's cut edge
@@ -92,7 +120,7 @@ surface or corners. Below PSA 7, centering is almost never what caps the grade.
     static/index.html    the whole UI
     run.ps1              first-run setup and start
     samples/             one scan to work against anywhere
-    results/             exported measurements, tracked
+    results/             exported measurements and calibration.jsonl, tracked
 
 ## The sample sheet
 

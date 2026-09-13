@@ -11,6 +11,7 @@ import csv
 import io
 import json
 import os
+import statistics
 import sys
 import time
 import webbrowser
@@ -30,6 +31,14 @@ SAMPLES = os.path.join(HERE, "samples")     # ships with the repo, so a fresh
 RESULTS = os.path.join(HERE, "results")     # clone has something to open
 UPLOADS = os.path.join(HERE, "uploads")     # dropped in through the upload modal
 SUFFIXES = (".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".webp")
+
+# Fine-tuning: every confirmed card appends a record here (see /api/calibration),
+# and /api/tuning mines it for a better starting guess than these hardcoded
+# numbers -- see calibrationRows() in static/index.html for what a record holds
+# and why only some sides in it are usable evidence.
+CALIBRATION_PATH = os.path.join(RESULTS, "calibration.jsonl")
+FALLBACK_INSET_MM = {"full-art": 1.3, "no-frame": 2.4, "unreadable": 2.4, "bordered": 2.4}
+MIN_TUNING_SAMPLES = 3   # below this, one odd correction could swing the guess too far
 
 app = Flask(__name__, static_folder=None)
 app.config["MAX_CONTENT_LENGTH"] = 300 * 1024 * 1024  # a phone photo batch, not a mistake
@@ -256,6 +265,76 @@ def export():
             writer.writeheader()
             writer.writerows(rows)
     return jsonify({"written": out, "rows": len(rows)})
+
+
+@app.post("/api/calibration")
+def calibration():
+    """Append confirmed-card records for /api/tuning to learn from later."""
+    body = request.get_json(force=True)
+    rows = body.get("rows", [])
+    if not rows:
+        return jsonify({"written": 0})
+    os.makedirs(RESULTS, exist_ok=True)
+    stamp = datetime.now().isoformat(timespec="seconds")
+    with open(CALIBRATION_PATH, "a", encoding="utf-8") as fh:
+        for row in rows:
+            fh.write(json.dumps({**row, "loggedAt": stamp}) + "\n")
+    return jsonify({"written": len(rows)})
+
+
+def _read_calibration() -> list[dict]:
+    if not os.path.isfile(CALIBRATION_PATH):
+        return []
+    records = []
+    with open(CALIBRATION_PATH, encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                records.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue  # a half-written line from a crashed append; skip it
+    return records
+
+
+def _compute_tuning() -> dict:
+    """Median confirmed border width per card `kind`, from real corrections only.
+
+    A side only counts here if it started as a flat kind-level guess --
+    placedByTrace false -- so a good trace's own accuracy never gets mixed
+    into the number meant to replace a guess where there was no trace at all.
+    """
+    records = _read_calibration()
+    by_kind: dict[str, list[float]] = {}
+    for record in records:
+        kind = record.get("kind")
+        placed = record.get("placedByTrace") or {}
+        confirmed = record.get("confirmedInsetMm") or {}
+        for side in ("l", "r", "t", "b"):
+            if placed.get(side):
+                continue
+            value = confirmed.get(side)
+            if isinstance(value, (int, float)) and 0.3 <= value <= 8.0:
+                by_kind.setdefault(kind, []).append(float(value))
+
+    inset, counts = {}, {}
+    for kind, values in by_kind.items():
+        counts[kind] = len(values)
+        if len(values) >= MIN_TUNING_SAMPLES:
+            inset[kind] = round(statistics.median(values), 2)
+    return {
+        "insetMmByKind": inset,
+        "counts": counts,
+        "fallback": FALLBACK_INSET_MM,
+        "totalRecords": len(records),
+        "minSamples": MIN_TUNING_SAMPLES,
+    }
+
+
+@app.get("/api/tuning")
+def tuning():
+    return jsonify(_compute_tuning())
 
 
 if __name__ == "__main__":

@@ -164,6 +164,7 @@ kbd{font-family:"IBM Plex Mono",monospace;font-size:11px;border:1px solid var(--
     <button id="uploadOpen">Upload photos&hellip;</button>
     <span class="spin" id="status"><span class="dot"></span><span id="statusText"></span></span>
     <span class="grow"></span>
+    <span class="path mono" id="tuningNote" title=""></span>
     <span class="path mono" id="folder"></span>
   </header>
   <main>
@@ -270,6 +271,19 @@ const NS='http://www.w3.org/2000/svg';
 const $=id=>document.getElementById(id);
 const IMG_W=1500;                 // working resolution of the served crop
 let sheetPath=null, cards=[], cur=0, imgUrl=null, lastGuide=null, statusTimer=null;
+let TUNING={insetMmByKind:{}, counts:{}, fallback:{}, totalRecords:0};
+
+async function loadTuning(){
+  try{ TUNING = await (await fetch('/api/tuning')).json(); }catch(e){ /* keep prior TUNING */ }
+  const note=$('tuningNote');
+  const n=TUNING.totalRecords||0;
+  if(!n){ note.textContent=''; note.title=''; return; }
+  const learned=Object.keys(TUNING.insetMmByKind||{});
+  note.textContent=`tuned from ${n} confirmed card${n===1?'':'s'}`;
+  note.title=learned.length
+    ? learned.map(k=>`${k}: ${TUNING.insetMmByKind[k]}mm (from ${TUNING.counts[k]} confirmed sides)`).join('\n')
+    : 'not enough confirmed cards of one kind yet to trust a tuned default';
+}
 
 function setStatus(text,busy){
   clearInterval(statusTimer); statusTimer=null;
@@ -370,15 +384,16 @@ function guidesFor(c){
   // Park an unfound guide somewhere plausible so it needs a nudge, not a hunt:
   // the server's own rough read of that side (frameGuess -- a looser, blurred
   // re-read for exactly the cards the strict tracer gave up on), else mirror
-  // a side that was found, else the thin frame of a full art (1.3 mm) or the
-  // wide border of an ordinary card (2.4 mm). Which of those two a card gets
-  // has to come from `kind`, not from borderSpread==999: that sentinel means
-  // "no colour reading passed at all" -- e.g. a heavily textured chrome/foil
-  // border, whose true width is an ordinary few mm -- and it fires on the
-  // same no-signal cards as genuine full art, which is why a "no-frame" card
-  // used to get parked at a full-art-thin 1.3 mm, well inside its real border.
+  // a side that was found, else a flat guess for this card's `kind` -- thin
+  // for full art, wider for an ordinary or unreadable border. That guess
+  // starts from a hardcoded fallback (TUNING.fallback) but is replaced by
+  // TUNING.insetMmByKind as soon as enough confirmed cards of that kind exist
+  // to trust a median over the guess -- see /api/tuning and calibrationRows().
   const found=fr?['left','right','top','bottom'].filter(k=>fr[k]!=null):[];
-  let inset=(c.kind==='full-art'?1.3:2.4)*pm;
+  const tunedMm=TUNING.insetMmByKind && TUNING.insetMmByKind[c.kind];
+  const fallbackMm=(TUNING.fallback && TUNING.fallback[c.kind]!=null)
+    ? TUNING.fallback[c.kind] : (c.kind==='full-art'?1.3:2.4);
+  let inset=(tunedMm!=null?tunedMm:fallbackMm)*pm;
   if(found.length){
     const widths=found.map(k=>Math.abs(fr[k]-cut[k])).filter(v=>isFinite(v));
     if(widths.length) inset=widths.reduce((a,b)=>a+b,0)/widths.length;
@@ -420,7 +435,7 @@ async function analyse(refresh){
     const r=await fetch('/api/analyse?path='+encodeURIComponent(sheetPath)+(refresh?'&refresh=1':''));
     const d=await r.json();
     if(d.error){ setStatus(d.error,false); return; }
-    cards=d.cards.map(c=>({...c, g:guidesFor(c), confirmed:false}));
+    cards=d.cards.map(c=>{ const g=guidesFor(c); return {...c, g, g0:{...g}, confirmed:false}; });
     const dpiLabel=d.sheet.dpi?`${d.sheet.dpi} dpi`:'photo, perspective-corrected';
     setStatus(`${cards.length} card${cards.length===1?'':'s'} · ${dpiLabel}`,false);
     $('empty').hidden=true; cur=0; rail(); show(0);
@@ -720,11 +735,46 @@ function rows(){
   });
 }
 
+// Confirmed cards feed the tuning loop: for each side that started life as
+// a flat kind-level guess (no trace, no frameGuess -- see guidesFor()), the
+// distance the guide was actually dragged to is direct evidence of what that
+// guess should have been. Sides that already had a real trace/guess behind
+// them are left out, so a good trace never gets diluted by an unrelated
+// correction. Fires alongside export rather than every Confirm click, so a
+// sheet still being worked through doesn't spam the server mid-adjustment.
+function calibrationRows(){
+  const mmInset=(g,pm)=>({
+    l:+((g.il-g.ol)/pm).toFixed(3), r:+((g.or-g.ir)/pm).toFixed(3),
+    t:+((g.it-g.ot)/pm).toFixed(3), b:+((g.ob-g.ib)/pm).toFixed(3),
+  });
+  return cards.filter(c=>c.confirmed).map(c=>{
+    const pm=c.pxPerMm, fr=c.frame, gu=c.frameGuess;
+    const placedByTrace={
+      l:!!(fr&&fr.left!=null)||!!(gu&&gu.left!=null),
+      r:!!(fr&&fr.right!=null)||!!(gu&&gu.right!=null),
+      t:!!(fr&&fr.top!=null)||!!(gu&&gu.top!=null),
+      b:!!(fr&&fr.bottom!=null)||!!(gu&&gu.bottom!=null),
+    };
+    return {
+      sheet:(sheetPath||'').split(/[\\/]/).pop(), cardIndex:c.index,
+      kind:c.kind||null, borderSpread:(c.borderSpread??null), borderColour:c.borderColour||null,
+      cardSizeMm:c.cardSizeMm||null, placedByTrace,
+      autoInsetMm:mmInset(c.g0||c.g,pm), confirmedInsetMm:mmInset(c.g,pm),
+    };
+  });
+}
+
 async function doExport(format){
   setBusy('Exporting…');
   const r=await fetch('/api/export',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({path:sheetPath,format,rows:rows()})});
   const d=await r.json();
+  const calRows=calibrationRows();
+  if(calRows.length){
+    await fetch('/api/calibration',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({rows:calRows})}).catch(()=>{});
+    await loadTuning();  // so the next card measured in this session already benefits
+  }
   setStatus(d.written?`Wrote ${d.rows} rows to ${d.written}`:(d.error||'export failed'),false);
 }
 
@@ -1048,11 +1098,13 @@ $('rot').onclick=async()=>{
   const r=await fetch('/api/rotate',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({path:sheetPath,index:cur,turns:1})});
   const fresh=await r.json();
-  cards[cur]={...fresh, g:guidesFor(fresh), confirmed:false};
+  const g=guidesFor(fresh);
+  cards[cur]={...fresh, g, g0:{...g}, confirmed:false};
   setStatus('',false);
   rail(); show(cur);
 };
 loadSheets();
+loadTuning();
 </script>
 </body>
 </html>
