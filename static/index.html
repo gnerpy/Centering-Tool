@@ -371,9 +371,14 @@ function guidesFor(c){
   // the server's own rough read of that side (frameGuess -- a looser, blurred
   // re-read for exactly the cards the strict tracer gave up on), else mirror
   // a side that was found, else the thin frame of a full art (1.3 mm) or the
-  // wide border of an ordinary card (2.4 mm).
+  // wide border of an ordinary card (2.4 mm). Which of those two a card gets
+  // has to come from `kind`, not from borderSpread==999: that sentinel means
+  // "no colour reading passed at all" -- e.g. a heavily textured chrome/foil
+  // border, whose true width is an ordinary few mm -- and it fires on the
+  // same no-signal cards as genuine full art, which is why a "no-frame" card
+  // used to get parked at a full-art-thin 1.3 mm, well inside its real border.
   const found=fr?['left','right','top','bottom'].filter(k=>fr[k]!=null):[];
-  let inset=(c.borderSpread>=999?1.3:2.4)*pm;
+  let inset=(c.kind==='full-art'?1.3:2.4)*pm;
   if(found.length){
     const widths=found.map(k=>Math.abs(fr[k]-cut[k])).filter(v=>isFinite(v));
     if(widths.length) inset=widths.reduce((a,b)=>a+b,0)/widths.length;
