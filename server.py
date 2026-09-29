@@ -279,7 +279,7 @@ def export():
         with open(out, "w", encoding="utf-8") as fh:
             json.dump({"sheet": os.path.basename(path), "cards": rows}, fh, indent=1)
     else:
-        cols = ["card", "label", "lr", "tb", "leftMm", "rightMm", "topMm", "bottomMm",
+        cols = ["card", "label", "pairing", "lr", "tb", "leftMm", "rightMm", "topMm", "bottomMm",
                 "worst", "ceiling", "confirmed", "flags"]
         with open(out, "w", encoding="utf-8", newline="") as fh:
             writer = csv.DictWriter(fh, fieldnames=cols, extrasaction="ignore")

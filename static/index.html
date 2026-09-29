@@ -197,14 +197,18 @@ kbd{font-family:"IBM Plex Mono",monospace;font-size:11px;border:1px solid var(--
       </div>
     </div>
     <div class="readout" id="readout" hidden>
+      <label class="eReaderToggle" style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink2);cursor:pointer">
+        <input type="checkbox" id="eReaderToggle">
+        e-Reader card (pairs Top+Right and Left+Bottom instead of opposite sides)
+      </label>
       <div class="axis" id="axLR">
-        <div class="cap"><span class="sw" style="background:var(--lr)"></span>Left / Right</div>
+        <div class="cap"><span class="sw" style="background:var(--lr)"></span><span id="capLR">Left / Right</span></div>
         <div class="val mono" id="vLR">&mdash;</div>
         <div class="bar"><span id="bLR1" style="background:var(--lr)"></span><span id="bLR2" style="background:var(--rule)"></span></div>
         <div class="mm mono" id="mmLR"></div>
       </div>
       <div class="axis" id="axTB">
-        <div class="cap"><span class="sw" style="background:var(--tb)"></span>Top / Bottom</div>
+        <div class="cap"><span class="sw" style="background:var(--tb)"></span><span id="capTB">Top / Bottom</span></div>
         <div class="val mono" id="vTB">&mdash;</div>
         <div class="bar"><span id="bTB1" style="background:var(--tb)"></span><span id="bTB2" style="background:var(--rule)"></span></div>
         <div class="mm mono" id="mmTB"></div>
@@ -653,13 +657,25 @@ function split(a,b){const t=a+b;return t>0?[100*a/t,100*b/t]:null;}
 function readout(){
   const c=cards[cur], g=c.g, pm=c.pxPerMm;
   const L=(g.il-g.ol)/pm, R=(g.or-g.ir)/pm, T=(g.it-g.ot)/pm, B=(g.ob-g.ib)/pm;
-  const lrOK=g.placed.l&&g.placed.r, tbOK=g.placed.t&&g.placed.b;
-  const lr=lrOK?split(L,R):null, tb=tbOK?split(T,B):null;
+  const eReader=!!c.eReader;
+  $('eReaderToggle').checked=eReader;
+  // Standard PSA convention pairs opposite sides (L+R, T+B). A handful of
+  // e-Card era sets -- Expedition, Aquapolis, Skyridge, the "e-Reader"
+  // block -- print with a registration offset graders instead pair
+  // diagonally: Top+Right as one ratio, Left+Bottom as the other.
+  const aOK = eReader ? (g.placed.t&&g.placed.r) : (g.placed.l&&g.placed.r);
+  const bOK = eReader ? (g.placed.l&&g.placed.b) : (g.placed.t&&g.placed.b);
+  const lr = aOK ? (eReader?split(T,R):split(L,R)) : null;
+  const tb = bOK ? (eReader?split(L,B):split(T,B)) : null;
+  $('capLR').textContent = eReader?'Top / Right':'Left / Right';
+  $('capTB').textContent = eReader?'Left / Bottom':'Top / Bottom';
   $('axLR').classList.toggle('dead',!lr); $('axTB').classList.toggle('dead',!tb);
   $('vLR').textContent = lr?`${lr[0].toFixed(1)} / ${lr[1].toFixed(1)}`:'—';
   $('vTB').textContent = tb?`${tb[0].toFixed(1)} / ${tb[1].toFixed(1)}`:'—';
-  $('mmLR').textContent = lr?`${L.toFixed(2)} mm · ${R.toFixed(2)} mm`:'place both side guides';
-  $('mmTB').textContent = tb?`${T.toFixed(2)} mm · ${B.toFixed(2)} mm`:'place both end guides';
+  $('mmLR').textContent = lr?(eReader?`${T.toFixed(2)} mm · ${R.toFixed(2)} mm`:`${L.toFixed(2)} mm · ${R.toFixed(2)} mm`)
+                             :(eReader?'place the top and right guides':'place both side guides');
+  $('mmTB').textContent = tb?(eReader?`${L.toFixed(2)} mm · ${B.toFixed(2)} mm`:`${T.toFixed(2)} mm · ${B.toFixed(2)} mm`)
+                             :(eReader?'place the left and bottom guides':'place both end guides');
   $('bLR1').style.flex=lr?lr[0]:50; $('bLR2').style.flex=lr?lr[1]:50;
   $('bTB1').style.flex=tb?tb[0]:50; $('bTB2').style.flex=tb?tb[1]:50;
 
@@ -722,13 +738,17 @@ function renderGradersMini(lr,tb){
 
 function rows(){
   return cards.map((c,i)=>{
-    const g=c.g,pm=c.pxPerMm;
+    const g=c.g,pm=c.pxPerMm, eReader=!!c.eReader;
     const L=(g.il-g.ol)/pm,R=(g.or-g.ir)/pm,T=(g.it-g.ot)/pm,B=(g.ob-g.ib)/pm;
-    const lr=(g.placed.l&&g.placed.r)?split(L,R):null, tb=(g.placed.t&&g.placed.b)?split(T,B):null;
+    const aOK = eReader ? (g.placed.t&&g.placed.r) : (g.placed.l&&g.placed.r);
+    const bOK = eReader ? (g.placed.l&&g.placed.b) : (g.placed.t&&g.placed.b);
+    const lr = aOK ? (eReader?split(T,R):split(L,R)) : null;
+    const tb = bOK ? (eReader?split(L,B):split(T,B)) : null;
     const worst=Math.max(...((lr||[]).concat(tb||[])),-1);
     let ceiling='';
     if(worst>=0) ceiling = worst<=55?10:worst<=60?9:worst<=65?8:worst<=70?7:'<7';
-    return {card:i+1, label:`Card ${i+1}`,
+    return {card:i+1, label:`Card ${i+1}`, eReader,
+      pairing: eReader?'top+right / left+bottom':'left+right / top+bottom',
       lr:lr?`${lr[0].toFixed(1)}/${lr[1].toFixed(1)}`:'',
       tb:tb?`${tb[0].toFixed(1)}/${tb[1].toFixed(1)}`:'',
       leftMm:+L.toFixed(3), rightMm:+R.toFixed(3), topMm:+T.toFixed(3), bottomMm:+B.toFixed(3),
@@ -1096,13 +1116,19 @@ $('json').onclick=()=>doExport('json');
 $('report').onclick=()=>exportReport();
 $('rot').onclick=async()=>{
   setBusy('Turning the card…', sheetPath);
+  const wasEReader=cards[cur].eReader;  // a property of this physical card, not its orientation
   const r=await fetch('/api/rotate',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({path:sheetPath,index:cur,turns:1})});
   const fresh=await r.json();
   const g=guidesFor(fresh);
-  cards[cur]={...fresh, g, g0:{...g}, confirmed:false};
+  cards[cur]={...fresh, g, g0:{...g}, confirmed:false, eReader:wasEReader};
   setStatus('',false);
   rail(); show(cur);
+};
+$('eReaderToggle').onchange=()=>{
+  cards[cur].eReader=$('eReaderToggle').checked;
+  cards[cur].confirmed=false;
+  paint();
 };
 loadSheets();
 loadTuning();
