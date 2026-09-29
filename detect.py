@@ -28,6 +28,7 @@ CARD_LONG_MM = 88.0
 
 DEFAULT_DPI = 600
 SEGMENT_LONG_SIDE = 1600  # segmentation runs on a downscaled copy
+SEGMENT_FLATTEN_FRAC = 0.20  # blur radius, as a fraction of the small image's short side
 SIDES = ("left", "right", "top", "bottom")
 CORNERS = (("left", "top"), ("right", "top"), ("left", "bottom"), ("right", "bottom"))
 
@@ -170,10 +171,49 @@ def _ink_mask(rgb: np.ndarray, thresh: int = 26) -> np.ndarray:
     return ((255 - lo) > thresh) | ((hi - lo) > thresh)
 
 
-def _white_mask(rgb: np.ndarray) -> np.ndarray:
+def _white_mask(rgb: np.ndarray, floor: float = 228.0) -> np.ndarray:
+    """Neutral and at least `floor` bright -- platen, under whatever light it got.
+
+    `floor` defaults to a fixed 228 for callers working in a small crop, where
+    a lighting gradient across the whole page barely matters. A caller
+    checking blankness near the edge of a big scan should pass a floor
+    measured from that same spot instead -- see _local_blank_floor().
+    """
     lo = rgb.min(axis=2).astype(np.int16)
     hi = rgb.max(axis=2).astype(np.int16)
-    return (lo > 228) & ((hi - lo) < 20)
+    return (lo > floor) & ((hi - lo) < 20)
+
+
+def _local_blank_floor(arr: np.ndarray, box: tuple[int, int, int, int]) -> float:
+    """What 'blank' looks like right around this box, not across the whole page.
+
+    A scanner lid not sitting flush can put a real, page-scale brightness
+    gradient across the platen -- corner-to-corner differences well past 228
+    are unremarkable, and demanding that anyway means _clean_crop can never
+    establish a margin near the dim side. Sampling a thin ring just outside
+    the box gives a floor tuned to the light this particular card actually
+    got, while the existing neutral-colour check still keeps real card
+    content from ever passing as background.
+    """
+    x0, y0, x1, y1 = box
+    h, w = arr.shape[:2]
+    pad = 6
+    strips = []
+    if y0 - pad >= 0:
+        strips.append(arr[y0 - pad:y0, x0:x1])
+    if y1 + pad <= h:
+        strips.append(arr[y1:y1 + pad, x0:x1])
+    if x0 - pad >= 0:
+        strips.append(arr[y0:y1, x0 - pad:x0])
+    if x1 + pad <= w:
+        strips.append(arr[y0:y1, x1:x1 + pad])
+    strips = [s.reshape(-1, 3) for s in strips if s.size]
+    if not strips:
+        return 228.0
+    sample = np.concatenate(strips)
+    # a touch below the sampled level, so the ring's own dimmest pixels don't
+    # fail the very floor that was measured from them
+    return max(180.0, float(np.median(sample.min(axis=1))) - 8.0)
 
 
 def _runs(profile: np.ndarray, thresh: float, min_len: int) -> list[tuple[int, int]]:
@@ -191,12 +231,40 @@ def _runs(profile: np.ndarray, thresh: float, min_len: int) -> list[tuple[int, i
     return out
 
 
+def _flatten_illumination(rgb: np.ndarray, blur_frac: float = SEGMENT_FLATTEN_FRAC) -> np.ndarray:
+    """Cancel a slow lighting gradient before thresholding for blank platen.
+
+    A scanner lid that isn't sitting flush -- propped open a little by a
+    thick or double-sleeved card -- lets ambient light fall off unevenly
+    across the bed, so platen at one corner can read 40+ levels darker than
+    at another. That's still nowhere near a card's own contrast, but it is
+    enough to push huge stretches of true background above the "blank"
+    threshold everywhere, so no row or column ever reads clean enough to
+    mark a break -- every card on the page ends up merged into one region.
+
+    The fix is the standard flat-field trick: estimate the local background
+    level with a blur wide enough to represent a slow, page-scale gradient
+    rather than any one card, then rescale each pixel against its own local
+    background so a shadowed corner of platen reads the same as a lit one.
+    Two adjacent cards are not "background" to this blur either, but their
+    own edges survive because the correction only removes slow trends, not
+    the sharp step at a card's boundary.
+    """
+    h, w = rgb.shape[:2]
+    radius = max(15.0, blur_frac * min(h, w))
+    bg = np.asarray(Image.fromarray(rgb).filter(ImageFilter.GaussianBlur(radius))).astype(np.float32)
+    bg = np.clip(bg, 40.0, None)  # keep dark card interiors from blowing up the ratio
+    target = float(np.percentile(bg, 92))  # roughly "how bright the platen truly is"
+    corrected = rgb.astype(np.float32) * (target / bg)
+    return np.clip(corrected, 0, 255).astype(np.uint8)
+
+
 def segment(sheet: Sheet) -> list[dict]:
     """Split the sheet into candidate card regions, in full-resolution pixels."""
     scale = min(1.0, SEGMENT_LONG_SIDE / max(sheet.w, sheet.h))
     small = np.asarray(sheet.image.resize(
         (max(1, int(sheet.w * scale)), max(1, int(sheet.h * scale))), Image.BILINEAR))
-    mask = _ink_mask(small)
+    mask = _ink_mask(_flatten_illumination(small))
     min_short = max(4, int(CARD_SHORT_MM * sheet.px_per_mm * scale * 0.55))
 
     boxes = []
@@ -239,9 +307,10 @@ def _clean_crop(sheet: Sheet, box, margin_mm: float = 4.0) -> list[int]:
     x0, y0, x1, y1 = box
     reach = int(round(margin_mm * sheet.px_per_mm))
     arr = np.asarray(sheet.image)
+    floor = _local_blank_floor(arr, box)
 
     def blank(line) -> bool:
-        return float(_white_mask(line[:, None, :] if line.ndim == 2 else line).mean()) > 0.92
+        return float(_white_mask(line[:, None, :] if line.ndim == 2 else line, floor).mean()) > 0.92
 
     lead = int(round(0.6 * sheet.px_per_mm))  # the box edge itself may be fuzzy
 
