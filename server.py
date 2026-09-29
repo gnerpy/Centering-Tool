@@ -17,6 +17,7 @@ import time
 import webbrowser
 from datetime import datetime
 
+import numpy as np
 from flask import Flask, jsonify, request, send_file, send_from_directory
 from PIL import Image
 from werkzeug.utils import secure_filename
@@ -68,9 +69,29 @@ def _safe(path: str) -> str:
     raise ValueError("that file is outside the scans and samples folders")
 
 
+def _looks_like_scan(path: str) -> bool:
+    """Mostly-blank, near-white background -- a flatbed scan, not a desk or table.
+
+    A real phone photo's background is essentially never this uniformly
+    white, even a plain sheet of paper under room light. Cheap on purpose:
+    a coarse resize and the same neutral-and-bright test used everywhere
+    else in detect.py for platen.
+    """
+    try:
+        sheet = detect.get_sheet(path)
+        small = np.asarray(sheet.image.resize((400, max(1, round(400 * sheet.h / sheet.w)))))
+        return float(detect._white_mask(small).mean()) > 0.35
+    except Exception:
+        return False
+
+
 def _is_photo(path: str) -> bool:
-    """Uploaded photos get perspective-corrected instead of scanner-segmented."""
-    return os.path.commonpath([path, os.path.abspath(UPLOADS)]) == os.path.abspath(UPLOADS)
+    """Uploaded photos get perspective-corrected, unless the upload is
+    actually a flatbed scan someone dropped through the modal instead of
+    copying into the scans folder -- that gets the proper multi-card path."""
+    if os.path.commonpath([path, os.path.abspath(UPLOADS)]) != os.path.abspath(UPLOADS):
+        return False
+    return not _looks_like_scan(path)
 
 
 def _analyse(path: str, refresh: bool = False) -> dict:
