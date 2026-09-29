@@ -190,6 +190,13 @@ kbd{font-family:"IBM Plex Mono",monospace;font-size:11px;border:1px solid var(--
       <div class="tools" hidden id="tools">
         <button id="rot">Rotate 90&deg;</button>
         <button id="reset">Reset guides</button>
+        <div class="nudge" id="straightenCtl" title="Rotate all eight guides together, to lay a straight line along a genuinely tilted edge">
+          <button type="button" data-a="-0.5" title="&minus;0.5&deg;">&laquo;</button>
+          <button type="button" data-a="-0.05" title="&minus;0.05&deg;">&lsaquo;</button>
+          <span class="lbl" id="straightenLabel">+0.00&deg;</span>
+          <button type="button" data-a="0.05" title="+0.05&deg;">&rsaquo;</button>
+          <button type="button" data-a="0.5" title="+0.5&deg;">&raquo;</button>
+        </div>
         <label style="display:flex;align-items:center;gap:5px;cursor:pointer">
           <input type="checkbox" id="showFlaws" checked>flaw overlay</label>
         <span id="note"></span>
@@ -311,6 +318,20 @@ function setBusy(label,pollPath){
 }
 
 const el=(t,a)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);return e;};
+
+// Fine straightening: when auto-detection can't confirm a card's true tilt
+// (see skew-not-confirmed), the eight guides can still be rotated together
+// as one rigid frame so a straight line can be laid along a genuinely
+// tilted edge -- dragging alone can only translate a line, never angle it
+// to match. Rotating the frame doesn't change any border width (rotation
+// is rigid, so the perpendicular distance between two parallel guides is
+// the same before and after), which is why nothing downstream needs to
+// know the frame is rotated except how a point maps onto it.
+const guidePivot=c=>({cx:(c.g.ol+c.g.or)/2, cy:(c.g.ot+c.g.ob)/2});
+function rotatePoint(px,py,cx,cy,deg){
+  const t=deg*Math.PI/180, s=Math.sin(t), co=Math.cos(t), dx=px-cx, dy=py-cy;
+  return {x:cx+dx*co-dy*s, y:cy+dx*s+dy*co};
+}
 const FLAG_TEXT={
   'full-art-frame':'Full art. The thin printed frame at the edge was traced, but it is far less definite than an ordinary border — check all four guides before trusting the ratio.',
   'no-print-frame-found':'No printed frame could be traced. On a full art that is expected: the frame is holo-textured and the artwork bleeds across it, so no colour rule finds it. The card is perfectly measurable by eye — the inner guides are parked about where the frame runs, so nudge them onto it with the loupe below.',
@@ -440,7 +461,7 @@ async function analyse(refresh){
     const r=await fetch('/api/analyse?path='+encodeURIComponent(sheetPath)+(refresh?'&refresh=1':''));
     const d=await r.json();
     if(d.error){ setStatus(d.error,false); return; }
-    cards=d.cards.map(c=>{ const g=guidesFor(c); return {...c, g, g0:{...g}, confirmed:false}; });
+    cards=d.cards.map(c=>{ const g=guidesFor(c); return {...c, g, g0:{...g}, guideAngleDeg:0, confirmed:false}; });
     const dpiLabel=d.sheet.dpi?`${d.sheet.dpi} dpi`:'photo, perspective-corrected';
     setStatus(`${cards.length} card${cards.length===1?'':'s'} · ${dpiLabel}`,false);
     $('empty').hidden=true; cur=0; rail(); show(0);
@@ -561,7 +582,7 @@ function addGuide(par,key,axis,c){
   par.appendChild(g);
   const move=e=>{
     if(g.dataset.drag!=='1') return;
-    const p=toLocal(e); set(key, axis==='v'?p.x:p.y); lastGuide=key; paint();
+    const p=toLocalGuideFrame(e); set(key, axis==='v'?p.x:p.y); lastGuide=key; paint();
   };
   g.addEventListener('pointerdown',e=>{g.setPointerCapture(e.pointerId);g.dataset.drag='1';
     lastGuide=key; e.preventDefault(); paint();});
@@ -583,6 +604,17 @@ function toLocal(e){
   p.x=e.clientX; p.y=e.clientY; return p.matrixTransform(m);
 }
 
+// A drag lands in the canvas's own (unrotated) coordinates; set() expects
+// coordinates in the guide frame's own local space (the space g.ol etc. are
+// defined in), so a pointer has to be rotated backwards by whatever angle
+// the frame is currently turned by before it means anything to set().
+function toLocalGuideFrame(e){
+  const p=toLocal(e), c=cards[cur], angle=c.guideAngleDeg||0;
+  if(!angle) return p;
+  const {cx,cy}=guidePivot(c);
+  return rotatePoint(p.x,p.y,cx,cy,-angle);
+}
+
 function set(k,v){
   const c=cards[cur], g=c.g, [w,h]=c.cropSize, lim=(a,b)=>Math.max(a,Math.min(b,v));
   const edge=c.pxPerMm*0.6;
@@ -599,7 +631,11 @@ function set(k,v){
 
 function paint(){
   const c=cards[cur], g=c.g, [w,h]=c.cropSize;
-  const bands=$('bands'); bands.textContent='';
+  const angle=c.guideAngleDeg||0, {cx,cy}=guidePivot(c);
+  const xform=angle?`rotate(${angle} ${cx} ${cy})`:'';
+  const bands=$('bands'); bands.textContent=''; bands.setAttribute('transform',xform);
+  $('lines').setAttribute('transform',xform);
+  $('straightenLabel').textContent=`${angle>0?'+':''}${angle.toFixed(2)}°`;
   [[g.ol,g.il],[g.ir,g.or]].forEach(([a,z])=>bands.appendChild(el('rect',
     {x:a,y:g.ot,width:Math.max(0,z-a),height:Math.max(0,g.ob-g.ot),fill:'var(--lr-fill)'})));
   [[g.ot,g.it],[g.ib,g.ob]].forEach(([a,z])=>bands.appendChild(el('rect',
@@ -642,39 +678,58 @@ function loupe(){
   $('nudgeLabel').textContent=lastGuide;
   const c=cards[cur], g=c.g;
   const vert=lastGuide==='ol'||lastGuide==='il'||lastGuide==='ir'||lastGuide==='or';
-  const z=8, cx=vert?g[lastGuide]:c.cropSize[0]/2, cy=vert?c.cropSize[1]/2:g[lastGuide];
-  const gg=el('g',{transform:`translate(${100 - cx*z} ${60 - cy*z}) scale(${z})`});
+  const angle=c.guideAngleDeg||0, {cx:pcx,cy:pcy}=guidePivot(c);
+  // the guide's true position over the image is its local coordinate carried
+  // through the same rotation the frame itself is drawn with -- so the loupe
+  // zooms on where the line actually sits, not where it would sit unrotated
+  const localPt = vert?{x:g[lastGuide],y:pcy}:{x:pcx,y:g[lastGuide]};
+  const centerPt = angle?rotatePoint(localPt.x,localPt.y,pcx,pcy,angle):localPt;
+  const z=8;
+  const gg=el('g',{transform:`translate(${100 - centerPt.x*z} ${60 - centerPt.y*z}) scale(${z})`});
   const im=el('image',{x:0,y:0,width:c.cropSize[0],height:c.cropSize[1],preserveAspectRatio:'none'});
   im.setAttribute('href',imgUrl); gg.appendChild(im);
   sv.appendChild(gg);
   const col=vert?'var(--lr)':'var(--tb)';
-  sv.appendChild(el('line',vert?{x1:100,y1:0,x2:100,y2:120,stroke:col,'stroke-width':1}
-                              :{x1:0,y1:60,x2:200,y2:60,stroke:col,'stroke-width':1}));
+  const dir=angle?rotatePoint(vert?0:1,vert?1:0,0,0,angle):{x:vert?0:1,y:vert?1:0};
+  const L=100;
+  sv.appendChild(el('line',{x1:100-dir.x*L,y1:60-dir.y*L,x2:100+dir.x*L,y2:60+dir.y*L,stroke:col,'stroke-width':1}));
 }
 
 function split(a,b){const t=a+b;return t>0?[100*a/t,100*b/t]:null;}
 
-function readout(){
-  const c=cards[cur], g=c.g, pm=c.pxPerMm;
+// The one place pairing convention (standard opposite-side vs e-Reader
+// diagonal) turns into actual numbers. Every place that shows or exports a
+// ratio -- the live readout, CSV/JSON, the graders modal, the report image
+// -- calls this instead of recomputing L/R/T/B itself, so toggling e-Reader
+// on a card is guaranteed to reach all of them, not whichever ones remembered.
+function axisPair(c){
+  const g=c.g, pm=c.pxPerMm, eReader=!!c.eReader;
   const L=(g.il-g.ol)/pm, R=(g.or-g.ir)/pm, T=(g.it-g.ot)/pm, B=(g.ob-g.ib)/pm;
-  const eReader=!!c.eReader;
-  $('eReaderToggle').checked=eReader;
-  // Standard PSA convention pairs opposite sides (L+R, T+B). A handful of
-  // e-Card era sets -- Expedition, Aquapolis, Skyridge, the "e-Reader"
-  // block -- print with a registration offset graders instead pair
-  // diagonally: Top+Right as one ratio, Left+Bottom as the other.
   const aOK = eReader ? (g.placed.t&&g.placed.r) : (g.placed.l&&g.placed.r);
   const bOK = eReader ? (g.placed.l&&g.placed.b) : (g.placed.t&&g.placed.b);
-  const lr = aOK ? (eReader?split(T,R):split(L,R)) : null;
-  const tb = bOK ? (eReader?split(L,B):split(T,B)) : null;
-  $('capLR').textContent = eReader?'Top / Right':'Left / Right';
-  $('capTB').textContent = eReader?'Left / Bottom':'Top / Bottom';
+  return {
+    eReader, L, R, T, B,
+    lr: aOK ? (eReader?split(T,R):split(L,R)) : null,
+    tb: bOK ? (eReader?split(L,B):split(T,B)) : null,
+    capLR: eReader?'Top / Right':'Left / Right',
+    capTB: eReader?'Left / Bottom':'Top / Bottom',
+    mmLR: eReader?[T,R]:[L,R],
+    mmTB: eReader?[L,B]:[T,B],
+    pairing: eReader?'top+right / left+bottom':'left+right / top+bottom',
+  };
+}
+
+function readout(){
+  const c=cards[cur], g=c.g, pm=c.pxPerMm;
+  const {eReader,lr,tb,capLR,capTB,mmLR,mmTB}=axisPair(c);
+  $('eReaderToggle').checked=eReader;
+  $('capLR').textContent=capLR; $('capTB').textContent=capTB;
   $('axLR').classList.toggle('dead',!lr); $('axTB').classList.toggle('dead',!tb);
   $('vLR').textContent = lr?`${lr[0].toFixed(1)} / ${lr[1].toFixed(1)}`:'—';
   $('vTB').textContent = tb?`${tb[0].toFixed(1)} / ${tb[1].toFixed(1)}`:'—';
-  $('mmLR').textContent = lr?(eReader?`${T.toFixed(2)} mm · ${R.toFixed(2)} mm`:`${L.toFixed(2)} mm · ${R.toFixed(2)} mm`)
+  $('mmLR').textContent = lr?`${mmLR[0].toFixed(2)} mm · ${mmLR[1].toFixed(2)} mm`
                              :(eReader?'place the top and right guides':'place both side guides');
-  $('mmTB').textContent = tb?(eReader?`${L.toFixed(2)} mm · ${B.toFixed(2)} mm`:`${T.toFixed(2)} mm · ${B.toFixed(2)} mm`)
+  $('mmTB').textContent = tb?`${mmTB[0].toFixed(2)} mm · ${mmTB[1].toFixed(2)} mm`
                              :(eReader?'place the left and bottom guides':'place both end guides');
   $('bLR1').style.flex=lr?lr[0]:50; $('bLR2').style.flex=lr?lr[1]:50;
   $('bTB1').style.flex=tb?tb[0]:50; $('bTB2').style.flex=tb?tb[1]:50;
@@ -738,17 +793,11 @@ function renderGradersMini(lr,tb){
 
 function rows(){
   return cards.map((c,i)=>{
-    const g=c.g,pm=c.pxPerMm, eReader=!!c.eReader;
-    const L=(g.il-g.ol)/pm,R=(g.or-g.ir)/pm,T=(g.it-g.ot)/pm,B=(g.ob-g.ib)/pm;
-    const aOK = eReader ? (g.placed.t&&g.placed.r) : (g.placed.l&&g.placed.r);
-    const bOK = eReader ? (g.placed.l&&g.placed.b) : (g.placed.t&&g.placed.b);
-    const lr = aOK ? (eReader?split(T,R):split(L,R)) : null;
-    const tb = bOK ? (eReader?split(L,B):split(T,B)) : null;
+    const {eReader,lr,tb,pairing,L,R,T,B}=axisPair(c);
     const worst=Math.max(...((lr||[]).concat(tb||[])),-1);
     let ceiling='';
     if(worst>=0) ceiling = worst<=55?10:worst<=60?9:worst<=65?8:worst<=70?7:'<7';
-    return {card:i+1, label:`Card ${i+1}`, eReader,
-      pairing: eReader?'top+right / left+bottom':'left+right / top+bottom',
+    return {card:i+1, label:`Card ${i+1}`, eReader, pairing,
       lr:lr?`${lr[0].toFixed(1)}/${lr[1].toFixed(1)}`:'',
       tb:tb?`${tb[0].toFixed(1)}/${tb[1].toFixed(1)}`:'',
       leftMm:+L.toFixed(3), rightMm:+R.toFixed(3), topMm:+T.toFixed(3), bottomMm:+B.toFixed(3),
@@ -845,8 +894,7 @@ function buildReportSvg(c,cardDataUrl){
   const imgX=PAD, imgY=110;
   const colX=imgX+CARD_W+44, colW=RPT_W-colX-PAD;
   const g=c.g, pm=c.pxPerMm;
-  const L=(g.il-g.ol)/pm, R=(g.or-g.ir)/pm, T=(g.it-g.ot)/pm, B=(g.ob-g.ib)/pm;
-  const lr=(g.placed.l&&g.placed.r)?split(L,R):null, tb=(g.placed.t&&g.placed.b)?split(T,B):null;
+  const {lr,tb,capLR,capTB,mmLR,mmTB}=axisPair(c);
   const worst=Math.max(...((lr||[]).concat(tb||[])),-1);
 
   const svg=document.createElementNS(NS,'svg');
@@ -863,18 +911,26 @@ function buildReportSvg(c,cardDataUrl){
 
   // -- card image + guide overlay --
   svg.appendChild(el('image',{x:imgX,y:imgY,width:CARD_W,height:CARD_H,href:cardDataUrl,'preserveAspectRatio':'none'}));
-  const bandsG=el('g',{});
   const tx=x=>imgX+x*scale, ty=y=>imgY+y*scale;
+  // The report's guides have to turn with the same manual straightening the
+  // canvas guides do (see axisPair/guidePivot) -- report-space is a uniform
+  // scale of crop-space, which preserves angles, so the same degree value
+  // rotates correctly once its pivot is carried through tx/ty too.
+  const angle=c.guideAngleDeg||0, pivotLocal=guidePivot(c);
+  const xform=angle?`rotate(${angle} ${tx(pivotLocal.cx)} ${ty(pivotLocal.cy)})`:'';
+  const bandsG=el('g',{transform:xform});
   [[g.ol,g.il],[g.ir,g.or]].forEach(([a,z])=>bandsG.appendChild(el('rect',
     {x:tx(a),y:ty(g.ot),width:Math.max(0,(z-a)*scale),height:Math.max(0,(g.ob-g.ot)*scale),fill:'rgba(196,160,45,.24)'})));
   [[g.ot,g.it],[g.ib,g.ob]].forEach(([a,z])=>bandsG.appendChild(el('rect',
     {x:tx(g.il),y:ty(a),width:Math.max(0,(g.ir-g.il)*scale),height:Math.max(0,(z-a)*scale),fill:'rgba(63,133,180,.22)'})));
   svg.appendChild(bandsG);
+  const linesG=el('g',{transform:xform});
+  svg.appendChild(linesG);
   const lw=Math.max(1.2,pm*scale*0.05);
   [['ol',false],['il',true],['ir',true],['or',false]].forEach(([k,inner])=>
-    reportGuide(svg,tx(g[k]),ty(0),tx(g[k]),ty(ch),lr_c,!inner,lw));
+    reportGuide(linesG,tx(g[k]),ty(0),tx(g[k]),ty(ch),lr_c,!inner,lw));
   [['ot',false],['it',true],['ib',true],['ob',false]].forEach(([k,inner])=>
-    reportGuide(svg,tx(0),ty(g[k]),tx(cw),ty(g[k]),tb_c,!inner,lw));
+    reportGuide(linesG,tx(0),ty(g[k]),tx(cw),ty(g[k]),tb_c,!inner,lw));
   svg.appendChild(el('rect',{x:imgX,y:imgY,width:CARD_W,height:CARD_H,fill:'none',stroke:rule,'stroke-width':1}));
 
   // -- right column --
@@ -887,10 +943,10 @@ function buildReportSvg(c,cardDataUrl){
     svgText(svg,colX,y,mmLine,{'font-size':11,fill:ink3,'font-family':'monospace'});
     y+=30;
   };
-  axis('LEFT / RIGHT', lr?`${lr[0].toFixed(1)} / ${lr[1].toFixed(1)}`:'—',
-    lr?`${L.toFixed(2)} mm · ${R.toFixed(2)} mm`:'not placed', lr_c);
-  axis('TOP / BOTTOM', tb?`${tb[0].toFixed(1)} / ${tb[1].toFixed(1)}`:'—',
-    tb?`${T.toFixed(2)} mm · ${B.toFixed(2)} mm`:'not placed', tb_c);
+  axis(capLR.toUpperCase(), lr?`${lr[0].toFixed(1)} / ${lr[1].toFixed(1)}`:'—',
+    lr?`${mmLR[0].toFixed(2)} mm · ${mmLR[1].toFixed(2)} mm`:'not placed', lr_c);
+  axis(capTB.toUpperCase(), tb?`${tb[0].toFixed(1)} / ${tb[1].toFixed(1)}`:'—',
+    tb?`${mmTB[0].toFixed(2)} mm · ${mmTB[1].toFixed(2)} mm`:'not placed', tb_c);
 
   y+=6;
   svgText(svg,colX,y,'CENTERING CEILING',{'font-size':11,'font-weight':700,fill:ink2,'font-family':'Arial,sans-serif','letter-spacing':'.06em'});
@@ -986,9 +1042,7 @@ async function exportReport(){
 }
 
 function renderGraders(c){
-  const g=c.g, pm=c.pxPerMm;
-  const L=(g.il-g.ol)/pm, R=(g.or-g.ir)/pm, T=(g.it-g.ot)/pm, B=(g.ob-g.ib)/pm;
-  const lr=(g.placed.l&&g.placed.r)?split(L,R):null, tb=(g.placed.t&&g.placed.b)?split(T,B):null;
+  const {lr,tb,capLR,capTB}=axisPair(c);
   const body=$('gradersBody'); body.innerHTML='';
   if(!lr||!tb){
     $('gradersSub').textContent='Place all four inner guides — both axes — to compare this card against graders.';
@@ -996,8 +1050,8 @@ function renderGraders(c){
   }
   const worstLR=Math.max(...lr), worstTB=Math.max(...tb);
   const bestAxis=Math.min(worstLR,worstTB), worstAxis=Math.max(worstLR,worstTB);
-  $('gradersSub').textContent=`This card's front centering: L/R ${lr[0].toFixed(1)}/${lr[1].toFixed(1)} · `+
-    `T/B ${tb[0].toFixed(1)}/${tb[1].toFixed(1)}`;
+  $('gradersSub').textContent=`This card's front centering: ${capLR} ${lr[0].toFixed(1)}/${lr[1].toFixed(1)} · `+
+    `${capTB} ${tb[0].toFixed(1)}/${tb[1].toFixed(1)}`;
   PROVIDERS.forEach(p=>{
     const grp=document.createElement('div'); grp.className='graderGroup';
     grp.innerHTML=`<span class="name">${p.name}</span><span class="full">${p.full}</span>`;
@@ -1103,12 +1157,18 @@ $('uploadGo').onclick=async()=>{
 
 $('go').onclick=()=>analyse(false);
 $('again').onclick=()=>analyse(true);
-$('reset').onclick=()=>{cards[cur].g=guidesFor(cards[cur]);cards[cur].confirmed=false;paint();};
+$('reset').onclick=()=>{cards[cur].g=guidesFor(cards[cur]);cards[cur].guideAngleDeg=0;cards[cur].confirmed=false;paint();};
 $('showFlaws').onchange=()=>show(cur);
 $('nudgeCtl').addEventListener('click',e=>{
   const b=e.target.closest('button'); if(!b||b.disabled||!lastGuide) return;
   const d=+b.dataset.d, step=(Math.abs(d)===10?10:1)*cards[cur].pxPerMm*0.02*Math.sign(d);
   set(lastGuide, cards[cur].g[lastGuide]+step); paint();
+});
+$('straightenCtl').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  const c=cards[cur];
+  c.guideAngleDeg=Math.max(-15,Math.min(15,(c.guideAngleDeg||0)+(+b.dataset.a)));
+  c.confirmed=false; paint();
 });
 $('confirm').onclick=()=>{cards[cur].confirmed=!cards[cur].confirmed;paint();};
 $('csv').onclick=()=>doExport('csv');
@@ -1121,7 +1181,10 @@ $('rot').onclick=async()=>{
     body:JSON.stringify({path:sheetPath,index:cur,turns:1})});
   const fresh=await r.json();
   const g=guidesFor(fresh);
-  cards[cur]={...fresh, g, g0:{...g}, confirmed:false, eReader:wasEReader};
+  // guideAngleDeg resets here: a 90-degree turn re-runs auto-skew detection
+  // from scratch on the newly-turned crop, so whatever residual the old
+  // angle was correcting for no longer has the same meaning against it.
+  cards[cur]={...fresh, g, g0:{...g}, guideAngleDeg:0, confirmed:false, eReader:wasEReader};
   setStatus('',false);
   rail(); show(cur);
 };
