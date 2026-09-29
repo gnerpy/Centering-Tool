@@ -642,18 +642,42 @@ def guess_frame(rgb: np.ndarray, rect: tuple[int, int, int, int], ppmm: float) -
     return {s: (v[1] if v else None) for s, v in best.items()}
 
 
-def _skew_from(band: dict) -> float:
-    """Card rotation in the crop, in degrees, from whichever edges were found."""
+SKEW_MAX_SPREAD_DEG = 2.0  # sides at least this close to agreeing counts as confirmed
+
+
+def _skew_from(band: dict) -> tuple[float, bool]:
+    """Card rotation in the crop, in degrees, plus whether two sides agree on it.
+
+    Still applies a rotation from a single passing edge when that's all
+    there is -- refusing to would leave a badly tilted crop for every later
+    step (frame tracing, corner checks) that assumes roughly axis-aligned
+    input, which on a real test case failed the card outright rather than
+    just leaving it a little crooked. What changes is that this now also
+    reports whether the number is real evidence (two sides independently
+    landing within a couple of degrees of each other) or a single reading
+    with nothing to check it against -- e.g. a loose or bubbled sleeve
+    giving the outer trace a slightly wavy line on the other sides. The
+    caller uses that to flag the card rather than to withhold the rotation.
+    """
     angles = []
     for side in SIDES:
         fit = band[side]["outer"] if isinstance(band[side], dict) else band[side]
         if fit is None or fit[2] > 5.0 or fit[3] < 0.6:
             continue
-        a = math.atan(fit[0])
+        a = math.degrees(math.atan(fit[0]))
         angles.append(a if side in ("top", "bottom") else -a)
     if not angles:
-        return 0.0
-    return math.degrees(float(np.median(angles)))
+        return 0.0, False
+    angles.sort()
+    best = None
+    for i in range(len(angles)):
+        for j in range(i + 1, len(angles)):
+            if angles[j] - angles[i] <= SKEW_MAX_SPREAD_DEG:
+                if best is None or (j - i) > (best[1] - best[0]):
+                    best = (i, j)
+    if best is not None:
+        return float(np.median(angles[best[0]:best[1] + 1])), True
+    return float(np.median(angles)), False
 
 
 # --------------------------------------------------------------------------
@@ -863,12 +887,32 @@ def _analyse_crop(crop: Image.Image, ppmm: float, quarter_turns: int | None = No
     stage("tracing the cut edge and printed frame")
     arr = np.asarray(crop)
     traced = trace_card(arr, ppmm, bg, lenient, extra_depths, known_rect, refine_known_rect)
-    skew = _skew_from(traced["cut"])
+    flags: list[str] = []
+    skew, confident = _skew_from(traced["cut"])
+    total_skew = 0.0
     if abs(skew) > 0.01:
         stage("straightening and re-tracing")
         crop = crop.rotate(skew, resample=Image.BICUBIC, fillcolor=(255, 255, 255))
         arr = np.asarray(crop)
+        total_skew += skew
         traced = trace_card(arr, ppmm, bg, lenient, extra_depths, known_rect, refine_known_rect)
+        # A real rotation can leave a small residual once the card's own
+        # geometry shifts under it -- but only worth chasing when the first
+        # reading was itself confirmed by two sides. On an unconfirmed
+        # reading (a loose or bubbled sleeve giving the outer trace a wavy
+        # line on the other sides, say) a second measurement is just as
+        # likely to be a different noisy guess as a genuine refinement, so
+        # one pass is where that case stops -- still rotated, just flagged.
+        if confident:
+            skew2, confident2 = _skew_from(traced["cut"])
+            if confident2 and abs(skew2) > 0.01:
+                crop = crop.rotate(skew2, resample=Image.BICUBIC, fillcolor=(255, 255, 255))
+                arr = np.asarray(crop)
+                total_skew += skew2
+                traced = trace_card(arr, ppmm, bg, lenient, extra_depths, known_rect, refine_known_rect)
+    skew = total_skew
+    if not confident:
+        flags.append("skew-not-confirmed")
     ch, cw = arr.shape[:2]
     band = traced["cut"]
 
@@ -879,7 +923,6 @@ def _analyse_crop(crop: Image.Image, ppmm: float, quarter_turns: int | None = No
         return None if fit is None else fit[0] * anchor(side) + fit[1]
 
     cut = {s: evaluate(band[s]["outer"], s) for s in SIDES}
-    flags: list[str] = []
     nominal = {"x": CARD_SHORT_MM * ppmm, "y": CARD_LONG_MM * ppmm}
 
     # an edge that fell off the platen, or was never found, is rebuilt from
