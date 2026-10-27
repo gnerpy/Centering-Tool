@@ -312,11 +312,19 @@ def _clean_crop(sheet: Sheet, box, margin_mm: float = 4.0) -> list[int]:
     def blank(line) -> bool:
         return float(_white_mask(line[:, None, :] if line.ndim == 2 else line, floor).mean()) > 0.92
 
-    lead = int(round(0.6 * sheet.px_per_mm))  # the box edge itself may be fuzzy
+    # How far past the box to keep looking for the first blank line before
+    # giving up. Segmentation boxes a tilted card by its rows/columns of mostly
+    # ink, which trims the corners that stick out -- a card 1 degree off on an
+    # 88 mm edge has a corner ~1.5 mm beyond its box, so the first lines past
+    # the box aren't blank yet even though the platen is right there. Giving up
+    # at 0.6 mm left those cards with no margin at all on two sides, the trace
+    # ran into the crop edge, and the skew came out at less than half its real
+    # value. 3 mm covers a placement up to about 2 degrees off.
+    lead = int(round(3.0 * sheet.px_per_mm))
 
     def grow(fixed_lo, fixed_hi, start, limit, stepdir, horizontal):
         best, established = start, False
-        for step in range(1, max(2, reach // 4)):
+        for step in range(1, max(2, (reach + lead) // 4)):
             nxt = start + stepdir * 4 * step
             if not (0 <= nxt < limit):
                 break
@@ -377,15 +385,28 @@ def _runs_along(mask: np.ndarray, side: str, ppmm: float, step: int = 8):
         if starts.size == 0:
             continue
         s = int(starts[0])
-        if s == 0:
-            no_margin += 1
         empty = np.convolve(1 - on, np.ones(hole, np.int32), "valid")
         ends = np.flatnonzero(empty == hole)
         ends = ends[ends > s]
-        if ends.size == 0:
-            continue
-        outer.append((t, to_coord(s - 0.5)))
-        inner.append((t, to_coord(int(ends[0]) - 0.5)))
+        # Where the band starts and where it ends are separate measurements,
+        # and each is only valid when it actually happened inside the line:
+        # s == 0 means the band already touches the crop boundary, so all
+        # that's known is that the edge is at or beyond it -- a censored
+        # reading. Recording it as a point at the boundary stacks a flat
+        # cluster into the line fit that drags a tilted edge toward vertical
+        # (a card tilted 1 degree read as 0.4 because over half its left-edge
+        # points sat at x=0), and robust_line can't reject a cluster that
+        # large as outliers. Likewise a band that never ends inside the line
+        # (a card running off the far side of the scan) says nothing about
+        # its inner edge -- but its outer edge was still measured cleanly,
+        # and dropping that too left a cut-off card with too few points on
+        # its one good side to fit at all.
+        if s == 0:
+            no_margin += 1
+        else:
+            outer.append((t, to_coord(s - 0.5)))
+        if ends.size:
+            inner.append((t, to_coord(int(ends[0]) - 0.5)))
     return outer, inner, (no_margin / total if total else 0.0)
 
 
@@ -582,6 +603,16 @@ def trace_card(rgb: np.ndarray, ppmm: float, bg=None, lenient: bool = False,
         if colour is None or spread > 90.0:
             continue
         band = _trace_band(_colour_band(rgb, colour, max(48.0, 3.0 * spread)), ppmm, lenient)
+        # A side the card-vs-background trace found with a clear margin can't
+        # come back clipped from a reading of the card's own border colour --
+        # if it does, that colour also matches the background there (a dark
+        # border against a lid-shadowed platen, say) and the band has run
+        # straight out into it. _span_error alone can't catch this, since it
+        # only compares sides that were found and so passes a reading that
+        # lost two of them.
+        if known_rect is None and any(base[s]["outer"] is not None and band[s]["outer"] is None
+                                      for s in SIDES):
+            continue
         err = _span_error(band, shape, ppmm)
         if err > 0.9 * ppmm:
             continue
