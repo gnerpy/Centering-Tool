@@ -479,6 +479,37 @@ def _card_band(rgb: np.ndarray, bg=None) -> np.ndarray:
     return np.abs(rgb.astype(np.float32) - bg).sum(axis=2) > 130.0
 
 
+SLEEVE_MAX_CHROMA = 12    # sleeve plastic and the shadow inside it are colourless...
+SLEEVE_MIN_LUMA = 140     # ...and never darker than this, even in a lid shadow
+
+
+def _card_body(rgb: np.ndarray) -> np.ndarray:
+    """The card itself, excluding a sleeve and the shadow the card casts in it.
+
+    _card_band asks "how far from white", which a clear sleeve over a
+    lid-shadowed platen can clear just as well as card stock -- on a real
+    scan it put the outer guides ~1.3 mm out on the sleeve. What a sleeve
+    and its shadow have in common is that they are colourless and fairly
+    light (measured 147-229 grey across one), while a card's edge is dark,
+    coloured, or both. This misreads a card whose own border is light,
+    neutral silver, which is why trace_card only reaches for it when the
+    ordinary trace has already come out too big to be a card.
+    """
+    a = rgb.astype(np.int16)
+    chroma = a.max(axis=2) - a.min(axis=2)
+    return ~((chroma < SLEEVE_MAX_CHROMA) & (luma(rgb) > SLEEVE_MIN_LUMA))
+
+
+def _oversize(band: dict, shape, ppmm: float, slack_mm: float = 0.8) -> bool:
+    """Whether a traced rectangle is bigger than any card -- the sleeve sign."""
+    nominal = {"x": CARD_SHORT_MM * ppmm, "y": CARD_LONG_MM * ppmm}
+    for a, b, axis in (("left", "right", "x"), ("top", "bottom", "y")):
+        pa, pb = _evaluate(band, a, shape), _evaluate(band, b, shape)
+        if pa is not None and pb is not None and (pb - pa) > nominal[axis] + slack_mm * ppmm:
+            return True
+    return False
+
+
 def _ink_box(rgb: np.ndarray):
     ink = ~_white_mask(rgb)
     rows = np.flatnonzero(ink.mean(axis=1) > 0.5)
@@ -562,8 +593,20 @@ def trace_card(rgb: np.ndarray, ppmm: float, bg=None, lenient: bool = False,
     """
     shape = rgb.shape[:2]
     straight = max(3.0, 0.22 * ppmm)
+    inside_sleeve = False
     if known_rect is None:
         base = _trace_band(_card_band(rgb, bg), ppmm, lenient)
+        # Too big to be a card means the trace is on a sleeve (or the shadow
+        # inside one). On a scan, look again for the card body inside it and
+        # keep that only if it lands closer to a real card without losing any
+        # side the first trace had -- a photo's background isn't light platen,
+        # so the sleeve rule doesn't apply there.
+        if bg is None and _oversize(base, shape, ppmm):
+            inner = _trace_band(_card_body(rgb), ppmm, lenient)
+            kept_sides = all(inner[s]["outer"] is not None
+                             for s in SIDES if base[s]["outer"] is not None)
+            if kept_sides and _span_error(inner, shape, ppmm) < _span_error(base, shape, ppmm):
+                base, inside_sleeve = inner, True
         rect = _rect_from(base, shape, ppmm)
         if rect is None:
             return {"cut": base, "frame": None, "spread": 999.0, "kind": "unreadable"}
@@ -626,13 +669,14 @@ def trace_card(rgb: np.ndarray, ppmm: float, bg=None, lenient: bool = False,
             best = (score, spread, band, colour)
 
     if best is None:
-        return {"cut": base, "frame": None, "spread": 999.0, "kind": "no-frame"}
+        return {"cut": base, "frame": None, "spread": 999.0, "kind": "no-frame",
+                "insideSleeve": inside_sleeve}
     # traced["cut"] is what downstream reads for edge position; traced["frame"]
     # is only ever read for its inner line, so trusting the known rect for cut
     # here doesn't discard anything the frame search found.
     return {"cut": base if known_rect is not None else best[2], "frame": best[2],
             "spread": best[1], "kind": "bordered" if best[1] <= 40.0 else "full-art",
-            "colour": best[3]}
+            "colour": best[3], "insideSleeve": inside_sleeve}
 
 
 def guess_frame(rgb: np.ndarray, rect: tuple[int, int, int, int], ppmm: float) -> dict:
@@ -1105,6 +1149,8 @@ def _analyse_crop(crop: Image.Image, ppmm: float, quarter_turns: int | None = No
     result["cardSizeMm"] = [round(span_w / ppmm, 2), round(span_h / ppmm, 2)]
     if span_w > nominal["x"] + 0.8 * ppmm or span_h > nominal["y"] + 0.8 * ppmm:
         flags.append("outer-trace-may-be-a-sleeve")
+    elif traced.get("insideSleeve"):
+        flags.append("measured-inside-sleeve")
 
     result["kind"] = traced["kind"]
     if traced["kind"] == "full-art":
