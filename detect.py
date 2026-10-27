@@ -17,6 +17,7 @@ from __future__ import annotations
 import math
 import os
 
+import cv2
 import numpy as np
 from PIL import Image, ImageFilter
 
@@ -673,6 +674,76 @@ def guess_frame(rgb: np.ndarray, rect: tuple[int, int, int, int], ppmm: float) -
     return {s: (v[1] if v else None) for s, v in best.items()}
 
 
+ORIENT_WORK_WIDTH = 900      # px; text checks run on a downscaled copy
+ORIENT_MIN_MARGIN = 10.0     # score gap between the two readings needed to act
+ORIENT_MIN_LINES = 3
+
+
+def _baseline_score(rgb: np.ndarray, ppmm: float) -> tuple[float, int]:
+    """How upright the card's printed text looks: positive is right way up.
+
+    A flatbed or a camera can't tell a card from the same card turned 180
+    degrees -- the outline is identical -- so the answer has to come from the
+    printing. Text is the reliable part: almost every letter sits on a shared
+    baseline, while letter tops split between short letters (a, e, x) and
+    tall ones (b, d, capitals). So in upright text the bottoms of a line's
+    letters agree and the tops don't, and turned over it's the reverse.
+    Scored per text line and summed, weighted by how many letters it had.
+    Both text polarities are tried, since card text is dark on light in
+    attack boxes and often light on dark on full arts.
+    """
+    h, w = rgb.shape[:2]
+    scale = ORIENT_WORK_WIDTH / float(w)
+    small = cv2.resize(rgb, (ORIENT_WORK_WIDTH, max(1, int(h * scale))), interpolation=cv2.INTER_AREA)
+    gray = cv2.cvtColor(small, cv2.COLOR_RGB2GRAY)
+    sp = ppmm * scale
+    lo_h, hi_h = 0.9 * sp, 3.2 * sp   # glyph heights that read as card text, in mm
+    total, used = 0.0, 0
+    for polarity in (cv2.THRESH_BINARY_INV, cv2.THRESH_BINARY):
+        bw = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C, polarity, 31, 18)
+        n, _, stats, _ = cv2.connectedComponentsWithStats(bw, 8)
+        glyphs = [(int(x), int(y), int(cw), int(ch)) for x, y, cw, ch, area in stats[1:n]
+                  if lo_h <= ch <= hi_h and cw <= 1.6 * ch and area >= 0.15 * cw * ch]
+        if len(glyphs) < 12:
+            continue
+        glyphs.sort(key=lambda g: g[1] + g[3] / 2)
+        lines, line = [], [glyphs[0]]
+        for g in glyphs[1:]:
+            centre = np.median([k[1] + k[3] / 2 for k in line])
+            if abs((g[1] + g[3] / 2) - centre) < 0.45 * np.median([k[3] for k in line]):
+                line.append(g)
+            else:
+                lines.append(line)
+                line = [g]
+        lines.append(line)
+        for line in lines:
+            if len(line) < 6:
+                continue
+            tops = np.array([g[1] for g in line], float)
+            bottoms = np.array([g[1] + g[3] for g in line], float)
+            tol = max(1.0, 0.10 * float(np.median([g[3] for g in line])))
+            bottoms_agree = np.mean(np.abs(bottoms - np.median(bottoms)) <= tol)
+            tops_agree = np.mean(np.abs(tops - np.median(tops)) <= tol)
+            total += (bottoms_agree - tops_agree) * len(line)
+            used += 1
+    return total, used
+
+
+def _upside_down(rgb: np.ndarray, ppmm: float) -> tuple[bool, bool]:
+    """(card is upside down, whether that's a confident call).
+
+    Scores the crop as it is and turned 180 degrees and goes with whichever
+    reads more upright, so neither direction gets a head start. Too little
+    text, or two readings too close together, is reported unconfirmed and
+    left as it is rather than guessed at.
+    """
+    as_is, lines = _baseline_score(rgb, ppmm)
+    turned, lines_turned = _baseline_score(np.ascontiguousarray(rgb[::-1, ::-1]), ppmm)
+    confident = (abs(turned - as_is) >= ORIENT_MIN_MARGIN
+                 and max(lines, lines_turned) >= ORIENT_MIN_LINES)
+    return confident and turned > as_is, confident
+
+
 SKEW_MAX_SPREAD_DEG = 2.0  # sides at least this close to agreeing counts as confirmed
 
 
@@ -909,16 +980,30 @@ def _analyse_crop(crop: Image.Image, ppmm: float, quarter_turns: int | None = No
         if progress:
             progress(label)
 
-    if quarter_turns is None:
+    auto_orient = quarter_turns is None
+    if auto_orient:
         quarter_turns = 1 if crop.size[0] > crop.size[1] else 0
     quarter_turns %= 4
     for _ in range(quarter_turns):
         crop = crop.transpose(Image.ROTATE_90)
 
+    # Portrait is decided by shape; which end is the top has to be read off
+    # the printing (see _upside_down). Only when the orientation is ours to
+    # choose -- a caller passing quarter_turns, e.g. the Rotate button, wins.
+    orientation_confirmed = True
+    if auto_orient:
+        stage("checking which way up the card is")
+        flip, orientation_confirmed = _upside_down(np.asarray(crop), ppmm)
+        if flip:
+            crop = crop.transpose(Image.ROTATE_180)
+            quarter_turns = (quarter_turns + 2) % 4
+
     stage("tracing the cut edge and printed frame")
     arr = np.asarray(crop)
     traced = trace_card(arr, ppmm, bg, lenient, extra_depths, known_rect, refine_known_rect)
     flags: list[str] = []
+    if not orientation_confirmed:
+        flags.append("orientation-not-confirmed")
     skew, confident = _skew_from(traced["cut"])
     total_skew = 0.0
     if abs(skew) > 0.01:

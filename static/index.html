@@ -282,6 +282,10 @@ const NS='http://www.w3.org/2000/svg';
 const $=id=>document.getElementById(id);
 const IMG_W=1500;                 // working resolution of the served crop
 let sheetPath=null, cards=[], cur=0, imgUrl=null, lastGuide=null, statusTimer=null;
+// Where along a guide the loupe looks: the point last clicked or dragged on a
+// vertical guide (a y) and on a horizontal one (an x), in guide-frame space.
+// null means the middle of the line, as before any click.
+let loupeAt={v:null,h:null};
 let TUNING={insetMmByKind:{}, counts:{}, fallback:{}, totalRecords:0};
 
 async function loadTuning(){
@@ -337,6 +341,7 @@ const FLAG_TEXT={
   'no-print-frame-found':'No printed frame could be traced. On a full art that is expected: the frame is holo-textured and the artwork bleeds across it, so no colour rule finds it. The card is perfectly measurable by eye — the inner guides are parked about where the frame runs, so nudge them onto it with the loupe below.',
   'frame-only-partly-found':'Only part of the frame was traced. Check every dashed guide.',
   'outer-trace-may-be-a-sleeve':'The card measures oversize, so the outer guides may be sitting on a penny sleeve. Re-scan unsleeved to be sure.',
+  'orientation-not-confirmed':'Couldn’t tell which way up this card is — there wasn’t enough readable text to go on, so it’s been left the way it was scanned. If it’s upside down, press Rotate 90° twice.',
   'skew-not-confirmed':'This card’s rotation was measured from only one reliable edge — often a sign of a loose or bubbled sleeve giving the other sides a slightly wavy line instead of the card’s own straight edge. It’s still been straightened by that reading, but if the card looks tilted against the guides, trust your eye over the auto-rotation and re-scan unsleeved for a cleaner result.',
   'card-measures-under-size':'The card measures undersize and no edge is obviously clipped. Check the outer guides.',
   'card-runs-off-the-sheet':'Part of this card is past the edge of the scan.',
@@ -532,7 +537,7 @@ function show(i){
   const lines=el('g',{id:'lines'}); cv.appendChild(lines);
   ['ol','il','ir','or'].forEach(k=>addGuide(lines,k,'v',c));
   ['ot','it','ib','ob'].forEach(k=>addGuide(lines,k,'h',c));
-  lastGuide=null;
+  lastGuide=null; loupeAt={v:null,h:null};
   $('note').textContent=`${c.cropSize[0]}×${c.cropSize[1]} px · straightened ${c.skewDeg > 0 ? '+' : ''}${c.skewDeg}°`;
   paint();
 }
@@ -580,12 +585,13 @@ function addGuide(par,key,axis,c){
   g.appendChild(el('rect',{class:'tab',fill:col,
     width:axis==='v'?pm*0.35:pm*0.9, height:axis==='v'?pm*0.9:pm*0.35}));
   par.appendChild(g);
+  const aimLoupe=p=>{ loupeAt[axis]=axis==='v'?p.y:p.x; };
   const move=e=>{
     if(g.dataset.drag!=='1') return;
-    const p=toLocalGuideFrame(e); set(key, axis==='v'?p.x:p.y); lastGuide=key; paint();
+    const p=toLocalGuideFrame(e); aimLoupe(p); set(key, axis==='v'?p.x:p.y); lastGuide=key; paint();
   };
   g.addEventListener('pointerdown',e=>{g.setPointerCapture(e.pointerId);g.dataset.drag='1';
-    lastGuide=key; e.preventDefault(); paint();});
+    aimLoupe(toLocalGuideFrame(e)); lastGuide=key; e.preventDefault(); paint();});
   g.addEventListener('pointermove',move);
   g.addEventListener('pointerup',e=>{g.dataset.drag='';g.releasePointerCapture(e.pointerId);});
   g.addEventListener('focus',()=>{lastGuide=key;paint();});
@@ -682,7 +688,7 @@ function loupe(){
   // the guide's true position over the image is its local coordinate carried
   // through the same rotation the frame itself is drawn with -- so the loupe
   // zooms on where the line actually sits, not where it would sit unrotated
-  const localPt = vert?{x:g[lastGuide],y:pcy}:{x:pcx,y:g[lastGuide]};
+  const localPt = vert?{x:g[lastGuide],y:loupeAt.v??pcy}:{x:loupeAt.h??pcx,y:g[lastGuide]};
   const centerPt = angle?rotatePoint(localPt.x,localPt.y,pcx,pcy,angle):localPt;
   const z=8;
   const gg=el('g',{transform:`translate(${100 - centerPt.x*z} ${60 - centerPt.y*z}) scale(${z})`});
